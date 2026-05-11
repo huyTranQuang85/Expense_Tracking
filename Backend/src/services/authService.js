@@ -1,0 +1,165 @@
+const bcrypt = require("bcrypt");
+const pool = require("../db");
+const { signToken } = require("../utils/jwt");
+const crypto = require("crypto");
+const SALT_ROUNDS = 10;
+
+async function registerUser({ fullName, email, password }) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // check email tồn tại
+    const existing = await client.query(
+      "SELECT user_id FROM users WHERE email = $1",
+      [normalizedEmail]
+    );
+    if (existing.rows.length > 0) {
+      const err = new Error("EMAIL_EXISTS");
+      err.type = "EMAIL_EXISTS";
+      throw err;
+    }
+
+    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+
+    // tạo user
+    const result = await client.query(
+      `INSERT INTO users (user_name, email, password_hash)
+       VALUES ($1, $2, $3)
+       RETURNING user_id, user_name, email`,
+      [fullName.trim(), normalizedEmail, passwordHash]
+    );
+
+    const user = result.rows[0];
+
+
+    await client.query("COMMIT");
+
+    const token = signToken({ userId: user.user_id });
+
+    return {
+      user: {
+        id: user.user_id,
+        fullName: user.user_name,
+        email: user.email,
+      },
+      token,
+    };
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    if (err.code === "23505" || err.type === "EMAIL_EXISTS") {
+      const e = new Error("EMAIL_EXISTS");
+      e.type = "EMAIL_EXISTS";
+      throw e;
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function loginUser({ email, password }) {
+  const normalizedEmail = email.toLowerCase().trim();
+
+  const result = await pool.query(
+    `SELECT user_id, user_name, email, password_hash
+     FROM users
+     WHERE email = $1`,
+    [normalizedEmail]
+  );
+
+  if (result.rows.length === 0) {
+    const err = new Error("INVALID_CREDENTIALS");
+    err.type = "INVALID_CREDENTIALS";
+    throw err;
+  }
+
+  const user = result.rows[0];
+
+  const ok = await bcrypt.compare(password, user.password_hash);
+  if (!ok) {
+    const err = new Error("INVALID_CREDENTIALS");
+    err.type = "INVALID_CREDENTIALS";
+    throw err;
+  }
+
+  const token = signToken({ userId: user.user_id });
+
+  return {
+    user: {
+      id: user.user_id,
+      fullName: user.user_name,
+      email: user.email,
+    },
+    token,
+  };
+}
+async function getUserById(userId) {
+  console.log("getUserById được gọi với:", userId);
+  const result = await pool.query(
+    `SELECT user_id, user_name, email, phone, bio, avatar_url
+     FROM users
+     WHERE user_id = $1`,
+    [userId]
+  );
+  console.log("Kết quả SELECT users:", result.rows);
+  if (result.rows.length === 0) return null;
+
+  const user = result.rows[0];
+
+  return {
+    id: user.user_id,
+    fullName: user.user_name,
+    email: user.email,
+    phoneNumber: user.phone,
+    bio: user.bio,
+    avatarUrl: user.avatar_url,
+  };
+}
+
+async function changePassword(userId, currentPassword, newPassword) {
+  // Lấy user + password_hash hiện tại
+  const result = await pool.query(
+    `SELECT password_hash FROM users WHERE user_id = $1`,
+    [userId]
+  );
+
+  if (result.rows.length === 0) {
+    const err = new Error("USER_NOT_FOUND");
+    err.type = "USER_NOT_FOUND";
+    throw err;
+  }
+
+  const user = result.rows[0];
+
+  // So sánh mật khẩu hiện tại
+  const ok = await bcrypt.compare(currentPassword, user.password_hash);
+  if (!ok) {
+    const err = new Error("INVALID_CURRENT_PASSWORD");
+    err.type = "INVALID_CURRENT_PASSWORD";
+    throw err;
+  }
+
+  // Hash mật khẩu mới
+  const newHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+
+  await pool.query(
+    `
+      UPDATE users
+      SET password_hash = $1, updated_at = now()
+      WHERE user_id = $2
+    `,
+    [newHash, userId]
+  );
+
+  return { userId };
+}
+
+module.exports = {
+  registerUser,
+  loginUser,
+  getUserById,
+  changePassword,
+};
