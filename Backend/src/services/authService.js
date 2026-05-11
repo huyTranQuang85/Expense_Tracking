@@ -34,6 +34,12 @@ async function registerUser({ fullName, email, password }) {
 
     const user = result.rows[0];
 
+     // tạo settings mặc định
+    await client.query(
+      `INSERT INTO settings (user_id) VALUES ($1)
+       ON CONFLICT (user_id) DO NOTHING`,
+      [user.user_id]
+    );
 
     await client.query("COMMIT");
 
