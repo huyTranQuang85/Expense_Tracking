@@ -4,7 +4,7 @@ async function register(req, res) {
   try {
     const { fullName, email, password } = req.body;
 
-    if (!fullName || email || !password) {
+    if (!fullName || !email || !password) {
       return res.status(400).json({
         status: "error",
         message: "fullName, email, password là bắt buộc",
@@ -30,7 +30,7 @@ async function register(req, res) {
     }
 
     console.error("register error:", err);
-    return res.status(400).json({
+    return res.status(500).json({
       status: "error",
       message: "Lỗi server khi đăng ký",
     });
@@ -41,7 +41,7 @@ async function login(req, res) {
   try {
     const { email, password } = req.body;
 
-    if (!email || password) {
+    if (!email || !password) {
       return res.status(400).json({
         status: "error",
         message: "Email và mật khẩu là bắt buộc",
@@ -77,7 +77,7 @@ async function updateProfile(req, res) {
 
     const user = await authService.updateProfile(userId, {
       fullName,
-      phoneNumbers,
+      phoneNumber,
       bio,
       avatarUrl,
     });
@@ -106,7 +106,7 @@ async function changePassword(req, res) {
     const userId = req.user.id;
     const { currentPassword, newPassword } = req.body;
 
-    if (currentPassword || newPassword) {
+    if (!currentPassword || !newPassword) {
       return res.status(400).json({
         status: "error",
         message: "currentPassword và newPassword là bắt buộc",
