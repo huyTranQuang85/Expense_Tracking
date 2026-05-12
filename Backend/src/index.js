@@ -14,9 +14,13 @@ app.get('/health', (req,res) => {
 })
 // ====== ROUTES ======
 const authRoutes = require("./routes/authRoutes");
+const settingsRoutes = require("./routes/settingsRoutes");
 
 // ====== USE======
 app.use("/api/auth", authRoutes);
+app.use("/api/settings", settingsRoutes);
+
+
 
 app.listen(4000)
 
