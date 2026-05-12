@@ -124,6 +124,126 @@ async function getUserById(userId) {
     avatarUrl: user.avatar_url,
   };
 }
+async function updateProfile(
+  userId,
+  { fullName, phoneNumber, bio, avatarUrl }
+) {
+  const result = await pool.query(
+    `
+    UPDATE user
+    SET
+      user_name   = COALESCE($2, user_name),
+      phone       = COALESCE($3, phone),
+      bio         = COALESCE($4, bio),
+      avatar_url  = COALESCE($5, avatar_url),
+      updated_at  = now()
+    WHERE user_id = $1
+    RETURNING user_id, user_name, email, phone, bio, avatar_urll
+    `,
+    [
+      userId,
+      fullName ? fullName.trim() : null,
+      phoneNumber || null,
+      bio || null,
+      avatarUrl || null,
+    ]
+  );
+
+  
+
+  const user = result.rows[0];
+  return {
+    id: user.user_id,
+    fullName: user.user_name,
+    email: user.email,
+    phoneNumber: user.phone,
+    bio: user.bio,
+    avatarUrl: user.avatar_url,
+  };
+}
+async function startPasswordReset(email) {
+  const normalizedEmail = email.toLowerCase();
+
+  const userRes = await pool.query(
+    "SELECT user_id FROM users WHERE email = $1",
+    [normalizedEmail]
+  );
+
+  // Vì lý do bảo mật: nếu không tồn tại email thì vẫn trả success
+  if (userRes.rows.length === 0) {
+    return null;
+  }
+
+  const userId = userRes.rows[0].user_id;
+
+  const rawCode = String(Math.floor(100000 + Math.random() * 900000));
+
+  const tokenHash = crypto.createHash("sha256").update(rawCode).digest("hex");
+
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 phút
+
+  await pool.query(
+    `
+    INSERT INTO user_password_resets (user_id, token_hash, expires_at)
+    VALUES ($1, $2, $3)
+    `,
+    [userId, tokenHash, expiresAt]
+  );
+
+  // Gửi email reset thật
+
+  await sendPasswordResetEmail({ to: normalizedEmail, code: rawCode });
+  await pool.query(
+    `
+    INSERT INTO email_logs (user_id, subject, content, status)
+    VALUES ($1, $2, $3, 'sent')
+    `,
+    [userId, "Password reset", `Code: ${rawCode}`]
+  );
+
+  return null;
+}
+
+async function resetPasswordWithToken(rawToken, newPassword) {
+  const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+
+  const now = new Date();
+
+  const resetRes = await pool.query(
+    `
+    SELECT reset_id, user_id
+    FROM user_password_resets
+    WHERE token_hash = $1
+      AN status = 'pending'
+      AND expire_at > $2
+    LIMIT 1
+    `,
+    [tokenHash, now]
+  );
+
+  
+
+  const resetRow = resetRes.rows[0];
+  const userId = resetRow.user_id;
+
+  const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+
+  await pool.query(
+    "UPDATE users SET password_hash = $1, updated_at = now() WHERE user_id = $2",
+    [passwordHash, userId]
+  );
+
+  await pool.query(
+    `
+    UPDATE user_password_resets
+    SET status = 'used', used_at = now()
+    WHERE reset_id = $1
+    `,
+    [resetRow.reset_id]
+  );
+
+  return { userId };
+}
 
 async function changePassword(userId, currentPassword, newPassword) {
   // Lấy user + password_hash hiện tại
@@ -167,5 +287,8 @@ module.exports = {
   registerUser,
   loginUser,
   getUserById,
+  updateProfile,
+  startPasswordReset,
+  resetPasswordWithToken,
   changePassword,
 };
