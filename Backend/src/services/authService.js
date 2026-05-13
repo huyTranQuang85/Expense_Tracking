@@ -130,7 +130,7 @@ async function updateProfile(
 ) {
   const result = await pool.query(
     `
-    UPDATE user
+    UPDATE users
     SET
       user_name   = COALESCE($2, user_name),
       phone       = COALESCE($3, phone),
@@ -138,7 +138,7 @@ async function updateProfile(
       avatar_url  = COALESCE($5, avatar_url),
       updated_at  = now()
     WHERE user_id = $1
-    RETURNING user_id, user_name, email, phone, bio, avatar_urll
+    RETURNING user_id, user_name, email, phone, bio, avatar_url
     `,
     [
       userId,
@@ -149,7 +149,7 @@ async function updateProfile(
     ]
   );
 
-  
+  if (result.rows.length === 0) return null;
 
   const user = result.rows[0];
   return {
@@ -162,7 +162,7 @@ async function updateProfile(
   };
 }
 async function startPasswordReset(email) {
-  const normalizedEmail = email.toLowerCase();
+  const normalizedEmail = email.toLowerCase().trim();
 
   const userRes = await pool.query(
     "SELECT user_id FROM users WHERE email = $1",
@@ -180,7 +180,7 @@ async function startPasswordReset(email) {
 
   const tokenHash = crypto.createHash("sha256").update(rawCode).digest("hex");
 
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 phút
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 phút
 
   await pool.query(
     `
@@ -214,14 +214,18 @@ async function resetPasswordWithToken(rawToken, newPassword) {
     SELECT reset_id, user_id
     FROM user_password_resets
     WHERE token_hash = $1
-      AN status = 'pending'
-      AND expire_at > $2
+      AND status = 'pending'
+      AND expires_at > $2
     LIMIT 1
     `,
     [tokenHash, now]
   );
 
-  
+  if (resetRes.rows.length === 0) {
+    const err = new Error("TOKEN_INVALID_OR_EXPIRED");
+    err.type = "TOKEN_INVALID_OR_EXPIRED";
+    throw err;
+  }
 
   const resetRow = resetRes.rows[0];
   const userId = resetRow.user_id;
