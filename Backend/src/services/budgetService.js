@@ -227,10 +227,251 @@ async function listBudgetHistory(userId, months = 6) {
   return rows.map((row) => mapBudgetRow(row));
 }
 
+/**
+ * Check & log cảnh báo khi user tạo/sửa/xoá giao dịch
+ * (để không spam lỗi, việc log lỗi không throw ra ngoài)
+ */
+/**
+ * Check & log cảnh báo khi user tạo/sửa/xoá/khôi phục giao dịch
+ *
+ * ✅ Hỗ trợ:
+ *  - userId: bắt buộc
+ *  - arg2: có thể là targetDate (Date | string) HOẶC client (pool client)
+ *  - arg3: nếu truyền, là client
+ *
+ * => Tương thích ngược:
+ *  - checkAndLogBudgetAlertsForUser(userId)              // dùng tháng hiện tại
+ *  - checkAndLogBudgetAlertsForUser(userId, client)      // dùng client, tháng hiện tại
+ *  - checkAndLogBudgetAlertsForUser(userId, txDate)      // dùng tháng của giao dịch
+ *  - checkAndLogBudgetAlertsForUser(userId, txDate, client)
+ */
+async function checkAndLogBudgetAlertsForUser(userId, arg2, arg3) {
+  let targetDate = null;
+  let client = pool;
 
+  // arg2 có thể là date hoặc client
+  if (arg2) {
+    if (typeof arg2.query === "function") {
+      // arg2 là client
+      client = arg2;
+    } else {
+      // arg2 là ngày (Date | string)
+      targetDate = arg2;
+    }
+  }
+
+  // arg3 nếu truyền thêm thì chắc chắn là client
+  if (arg3 && typeof arg3.query === "function") {
+    client = arg3;
+  }
+
+  // 🔹 Lấy ngày đầu tháng của tháng cần check (tháng giao dịch)
+  // 🔹 Lấy ngày đầu tháng của tháng cần check (tháng giao dịch)
+  const monthDate = normalizeMonthDate(targetDate);
+
+  // Lấy YYYY-MM-01 theo local time, tránh lệch timezone
+  const y = monthDate.getFullYear();
+  const m = String(monthDate.getMonth() + 1).padStart(2, "0");
+  const monthDateStr = `${y}-${m}-01`; // ví dụ: "2025-02-01"
+
+  // 1. Lấy budget của tháng đó có bật notify
+  const { rows: budgetRows } = await client.query(
+    `
+    SELECT *
+    FROM budgets
+    WHERE user_id = $1
+      AND month = date_trunc('month', $2::date)::date
+      AND category_id IS NULL
+      AND wallet_id IS NULL
+      AND (notify_in_app = true OR notify_email = true)
+    LIMIT 1
+    `,
+    [userId, monthDateStr]
+  );
+
+  if (budgetRows.length === 0) return; // chưa set hạn mức cho tháng này
+
+  const b = budgetRows[0];
+
+  // 2. Tính tổng chi tiêu trong THÁNG CỦA GIAO DỊCH
+  const { rows: spendRows } = await client.query(
+    `
+    SELECT COALESCE(SUM(t.amount), 0) AS total
+    FROM transactions t
+    JOIN categories c ON c.category_id = t.category_id
+    WHERE t.user_id = $1
+      AND t.deleted_at IS NULL
+      AND c.type = 'expense'
+      AND t.tx_date >= date_trunc('month', $2::date)::date
+      AND t.tx_date <  (date_trunc('month', $2::date) + interval '1 month')::date
+    `,
+    [userId, monthDateStr]
+  );
+
+  const spent = Number(spendRows[0].total);
+  const limit = Number(b.limit_amount);
+  if (limit <= 0) return;
+
+  const percentage = (spent / limit) * 100;
+
+  // 3. Nếu chưa qua ngưỡng nào thì thôi
+  if (percentage < b.alert_threshold && percentage < 100) return;
+
+  // 4. Chuẩn bị ngưỡng cần log
+  const thresholdsToLog = new Set();
+  if (percentage >= b.alert_threshold) thresholdsToLog.add(b.alert_threshold);
+  if (percentage >= 100) thresholdsToLog.add(101); // 101 = vượt 100%
+
+  // ngày hôm nay (log / gửi mail theo NGÀY hiện tại, đúng yêu cầu "1 ngày")
+  const today = new Date().toISOString().slice(0, 10); // yyyy-mm-dd
+
+  // Lấy thông tin user để gửi email
+  let userEmail = null;
+  let userFullName = null;
+  if (b.notify_email) {
+    const { rows: userRows } = await client.query(
+      `SELECT email, user_name FROM users WHERE user_id = $1`,
+      [userId]
+    );
+    if (userRows.length > 0) {
+      userEmail = userRows[0].email;
+      userFullName = userRows[0].user_name || "bạn";
+    }
+  }
+
+  // label tháng đúng với tháng của giao dịch
+  const monthLabelVi = monthDate.toLocaleDateString("vi-VN", {
+    month: "long",
+    year: "numeric",
+  });
+
+  for (const thr of thresholdsToLog) {
+    // 4.1. Log in-app (chỉ để lưu lịch sử)
+    if (b.notify_in_app) {
+      await client.query(
+        `
+        INSERT INTO budget_alert_logs (
+          user_id, budget_id, threshold, sent_on, channel
+        )
+        VALUES ($1, $2, $3, $4, 'in_app')
+        ON CONFLICT (user_id, budget_id, threshold, sent_on, channel)
+        DO NOTHING
+        `,
+        [userId, b.budget_id, thr, today]
+      );
+    }
+
+    // 4.2. Log + gửi EMAIL, chỉ 1 lần / ngày / ngưỡng
+    if (b.notify_email && userEmail) {
+      const { rows: emailLogRows } = await client.query(
+        `
+        INSERT INTO budget_alert_logs (
+          user_id, budget_id, threshold, sent_on, channel
+        )
+        VALUES ($1, $2, $3, $4, 'email')
+        ON CONFLICT (user_id, budget_id, threshold, sent_on, channel)
+        DO NOTHING
+        RETURNING user_id
+        `,
+        [userId, b.budget_id, thr, today]
+      );
+
+      // rows.length > 0 nghĩa là vừa INSERT mới → gửi email
+      if (emailLogRows.length > 0) {
+        const subject =
+          thr === 101
+            ? "[BudgetF] Cảnh báo: Bạn đã vượt 100% ngân sách tháng"
+            : `[BudgetF] Cảnh báo: Chi tiêu đạt ${Math.round(
+                percentage
+              )}% ngân sách tháng`;
+
+        const spentStr = spent.toLocaleString("vi-VN");
+        const limitStr = limit.toLocaleString("vi-VN");
+
+        const html = `
+          <p>Xin chào ${userFullName},</p>
+          <p>Hệ thống BudgetF ghi nhận chi tiêu tháng <strong>${monthLabelVi}</strong> của bạn đã đạt mức:</p>
+          <p><strong>${spentStr}₫ / ${limitStr}₫ (${percentage.toFixed(
+          0
+        )}%)</strong></p>
+          <p>Ngưỡng cảnh báo bạn đặt: <strong>${
+            b.alert_threshold
+          }%</strong>.</p>
+          ${
+            thr === 101
+              ? "<p><strong>Lưu ý:</strong> Bạn đã vượt quá 100% hạn mức ngân sách tháng.</p>"
+              : ""
+          }
+          <p>Bạn nên xem lại các khoản chi và điều chỉnh ngân sách nếu cần.</p>
+          <p>Trân trọng,<br/>BudgetF</p>
+        `;
+
+        const text = `Xin chào ${userFullName}, chi tiêu tháng ${monthLabelVi} của bạn đã đạt ${spentStr}₫ / ${limitStr}₫ (${percentage.toFixed(
+          0
+        )}%). Ngưỡng cảnh báo: ${b.alert_threshold}%.`;
+
+        sendBudgetAlertEmail({ to: userEmail, subject, html, text }).catch(
+          (err) => {
+            console.error("sendBudgetAlertEmail error:", err);
+          }
+        );
+      }
+    }
+  }
+}
+
+function mapAlertRow(row) {
+  if (!row) return null;
+  return {
+    id: row.budget_alert_log_id, // nếu bảng dùng tên khác (vd id) thì sửa lại chỗ này
+    budgetId: row.budget_id,
+    threshold: row.threshold, // 70 | 80 | 90 | 100 | 101 (101 = vượt 100%)
+    sentOn: row.sent_on, // DATE
+    channel: row.channel, // 'in_app' | 'email'
+    month: row.month, // tháng của budget
+    limitAmount: Number(row.limit_amount),
+    budgetAlertThreshold: row.alert_threshold, // ngưỡng cấu hình trong budget
+    createdAt: row.created_at,
+  };
+}
+
+/**
+ * Lấy các log cảnh báo ngân sách gần đây
+ * @param userId
+ * @param days số ngày gần đây, default 30
+ */
+async function listBudgetAlerts(userId, days = 30) {
+  const d = Math.max(1, Math.min(365, Number(days) || 30));
+
+  const { rows } = await pool.query(
+    `
+    SELECT 
+      l.budget_alert_log_id ,
+      l.user_id,
+      l.budget_id,
+      l.threshold,
+      l.sent_on,
+      l.channel,
+      l.created_at,
+      b.month,
+      b.limit_amount,
+      b.alert_threshold
+    FROM budget_alert_logs l
+    JOIN budgets b ON b.budget_id = l.budget_id
+    WHERE l.user_id = $1
+      AND l.sent_on >= CURRENT_DATE - $2 * INTERVAL '1 day'
+    ORDER BY l.sent_on DESC, l.threshold DESC
+    `,
+    [userId, d]
+  );
+
+  return rows.map(mapAlertRow);
+}
 
 module.exports = {
   getCurrentBudget,
   upsertCurrentBudget,
   listBudgetHistory,
+  checkAndLogBudgetAlertsForUser,
+  listBudgetAlerts,
 };
