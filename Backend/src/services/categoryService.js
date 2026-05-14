@@ -313,10 +313,101 @@ async function updateCategory(userId, categoryId, updates) {
   return mapCategoryRow(rows[0]);
 }
 
+/**
+ * Xóa category:
+ *  - chỉ cho xóa category thuộc user
+ *  - global không cho xóa
+ *  - không được có giao dịch dính tới category này hoặc con của nó
+ *  - nếu ok: xóa subcategory trước, rồi xóa parent
+ */
+async function deleteCategory(userId, categoryId) {
+  categoryId = Number(categoryId);
+  if (Number.isNaN(categoryId)) {
+    const err = new Error("ID danh mục không hợp lệ");
+    err.status = 400;
+    throw err;
+  }
 
+  // Lấy category
+  const { rows: existedRows } = await pool.query(
+    `SELECT * FROM categories WHERE category_id = $1`,
+    [categoryId]
+  );
+
+  if (existedRows.length === 0) {
+    const err = new Error("Không tìm thấy danh mục");
+    err.status = 404;
+    throw err;
+  }
+
+  const cat = existedRows[0];
+
+  if (cat.user_id === null) {
+    const err = new Error("Không thể xóa danh mục mặc định (global)");
+    err.status = 403;
+    throw err;
+  }
+
+  if (cat.user_id !== userId) {
+    const err = new Error("Bạn không có quyền xóa danh mục này");
+    err.status = 403;
+    throw err;
+  }
+
+  // Tìm tất cả subcategory trực tiếp
+  const { rows: subRows } = await pool.query(
+    `SELECT category_id FROM categories WHERE parent_category_id = $1`,
+    [categoryId]
+  );
+  const subIds = subRows.map((r) => r.category_id);
+
+  const allIds = [categoryId, ...subIds];
+
+  // Kiểm tra giao dịch dính tới các category này
+  const { rows: txRows } = await pool.query(
+    `
+      SELECT 1 
+      FROM transactions 
+      WHERE user_id = $1
+        AND category_id = ANY($2::bigint[])
+        AND deleted_at IS NULL
+      LIMIT 1
+    `,
+    [userId, allIds]
+  );
+
+  if (txRows.length > 0) {
+    const err = new Error(
+      "Không thể xóa danh mục vì đang có giao dịch liên quan. Vui lòng xóa giao dịch hoặc chuyển danh mục trước."
+    );
+    err.status = 400;
+    throw err;
+  }
+
+  // Xóa subcategory trước
+  if (subIds.length > 0) {
+    await pool.query(
+      `DELETE FROM categories 
+       WHERE parent_category_id = $1 
+         AND user_id = $2`,
+      [categoryId, userId]
+    );
+  }
+
+  // Xóa parent
+  await pool.query(
+    `DELETE FROM categories 
+     WHERE category_id = $1 
+       AND user_id = $2`,
+    [categoryId, userId]
+  );
+
+  return true;
+}
 
 module.exports = {
   getCategories,
   createCategory,
   updateCategory,
+  deleteCategory,
 };
