@@ -128,19 +128,35 @@ export default function TransactionListScreen({ navigation }: Props) {
             </Text>
           </View>
 
-          <Pressable
-            onPress={() => navigation.navigate("Categories")}
-            style={({ pressed }) => [
-              styles.ghostBtn,
-              {
-                backgroundColor: colors.card,
-                borderColor: colors.stroke,
-                opacity: pressed ? 0.86 : 1,
-              },
-            ]}
-          >
-            <Text style={[styles.ghostBtnText, { color: colors.text }]}>Danh mục</Text>
-          </Pressable>
+          <View style={styles.headerBtnCol}>
+            <Pressable
+              onPress={() => navigation.navigate("WalletList")}
+              style={({ pressed }) => [
+                styles.ghostBtn,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.stroke,
+                  opacity: pressed ? 0.86 : 1,
+                },
+              ]}
+            >
+              <Text style={[styles.ghostBtnText, { color: colors.text }]}>Ví</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => navigation.navigate("Categories")}
+              style={({ pressed }) => [
+                styles.ghostBtn,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.stroke,
+                  opacity: pressed ? 0.86 : 1,
+                },
+              ]}
+            >
+              <Text style={[styles.ghostBtnText, { color: colors.text }]}>Danh mục</Text>
+            </Pressable>
+          </View>
         </View>
 
         <View style={[styles.heroCard, { backgroundColor: colors.card }]}>
@@ -339,6 +355,7 @@ const styles = StyleSheet.create({
   },
   title: { fontFamily: "Faustina_700Bold", fontSize: 24 },
   subtitle: { marginTop: 4, fontFamily: "Faustina_400Regular", fontSize: 13 },
+  headerBtnCol: { gap: 8 },
   ghostBtn: {
     paddingHorizontal: 14,
     height: 42,
