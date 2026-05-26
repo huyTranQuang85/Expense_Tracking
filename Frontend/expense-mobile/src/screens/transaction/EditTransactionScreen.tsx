@@ -26,7 +26,7 @@ import {
   updateTransaction,
   softDeleteTransaction,
   TxType,
-} from "../../services/transaction";
+} from "../../services/transactions";
 import { fetchCategories, Category } from "../../services/dashboard";
 import { api } from "../../services/api";
 import { useTheme } from "../../theme/ThemeContext";

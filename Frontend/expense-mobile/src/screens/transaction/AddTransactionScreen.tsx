@@ -14,7 +14,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
 
 import SelectModal from "../../components/SelectModal";
-import { createTransaction, TxType } from "../../services/transaction";
+import { createTransaction, TxType } from "../../services/transactions";
 import { fetchCategories, Category } from "../../services/dashboard";
 import { api } from "../../services/api";
 import { checkBudgetAndNotifyInApp } from "../../services/budgets";
