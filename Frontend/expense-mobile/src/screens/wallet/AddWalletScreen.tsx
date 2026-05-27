@@ -1,0 +1,717 @@
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  Animated,
+  FlatList,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  Easing,
+  Platform,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import Toast from "react-native-toast-message";
+import { LinearGradient } from "expo-linear-gradient";
+import { createWallet } from "../../services/wallets";
+
+// 🔥 dùng theme như Category / ManageWallet
+import { useTheme } from "../../theme/ThemeContext";
+
+type Props = { navigation: any };
+
+const ICONS = [
+  "💰",
+  "💳",
+  "🏦",
+  "🪙",
+  "🐷",
+  "👜",
+  "🎁",
+  "🏠",
+  "🚗",
+  "🍔",
+  "🧾",
+  "📦",
+];
+
+type ColorSwatch =
+  | { key: string; type: "solid"; primary: string }
+  | {
+      key: string;
+      type: "gradient";
+      primary: string;
+      colors: [string, string];
+    };
+
+const SWATCHES: ColorSwatch[] = [
+  { key: "red", type: "solid", primary: "#EF4444" },
+  { key: "teal", type: "solid", primary: "#0F766E" },
+  { key: "indigo", type: "solid", primary: "#4F46E5" },
+  { key: "violet", type: "solid", primary: "#5B21B6" },
+  { key: "amber", type: "solid", primary: "#D97706" },
+  { key: "pink", type: "solid", primary: "#E879F9" },
+  { key: "brown", type: "solid", primary: "#9B5C5C" },
+  { key: "blue", type: "solid", primary: "#1D4ED8" },
+  { key: "mint", type: "solid", primary: "#2DD4BF" },
+  { key: "sand", type: "solid", primary: "#E5D3B3" },
+  { key: "yellow", type: "solid", primary: "#EAB308" },
+  { key: "olive", type: "solid", primary: "#7C8A2A" },
+
+  // gradient (UI đẹp). API vẫn lưu primary.
+  {
+    key: "g_teal",
+    type: "gradient",
+    primary: "#0F766E",
+    colors: ["#0F766E", "#2DD4BF"],
+  },
+  {
+    key: "g_indigo",
+    type: "gradient",
+    primary: "#4F46E5",
+    colors: ["#4F46E5", "#A78BFA"],
+  },
+  {
+    key: "g_sunset",
+    type: "gradient",
+    primary: "#EF4444",
+    colors: ["#EF4444", "#F59E0B"],
+  },
+  {
+    key: "g_sky",
+    type: "gradient",
+    primary: "#1D4ED8",
+    colors: ["#1D4ED8", "#60A5FA"],
+  },
+];
+
+const VND = (n: number) => `${Math.round(n).toLocaleString("vi-VN")}₫`;
+
+type UI = {
+  bg: string;
+  card: string;
+  text: string;
+  muted: string;
+  inputBg: string;
+  stroke: string;
+  previewCard: string;
+  pickerBg: string;
+  pickerStroke: string;
+  iconCellBg: string;
+  iconCellBorder: string;
+  iconCellActiveBg: string;
+  iconCellActiveBorder: string;
+  swatchBg: string;
+  ghostBtnBg: string;
+  prefixBg: string;
+  backBtnBg: string;
+  backBtnBorder: string;
+};
+
+export default function AddWalletScreen({ navigation }: Props) {
+  const { mode } = useTheme();
+  const isDark = mode === "dark";
+
+  const ui: UI = useMemo(() => {
+    const bg = isDark ? "#020617" : "#F8FAFC";
+    const card = isDark ? "rgba(15,23,42,0.98)" : "#FFFFFF";
+    const text = isDark ? "rgba(248,250,252,0.96)" : "#0F172A";
+    const muted = isDark ? "rgba(148,163,184,0.96)" : "#64748B";
+    const inputBg = isDark ? "rgba(15,23,42,0.90)" : "rgba(148,163,184,0.16)";
+    const stroke = isDark ? "rgba(51,65,85,1)" : "rgba(15,23,42,0.06)";
+    const previewCard = isDark ? "rgba(15,23,42,0.98)" : "#FFFFFF";
+    const pickerBg = isDark ? "rgba(15,23,42,0.96)" : "#F8FAFC";
+    const pickerStroke = isDark
+      ? "rgba(30,64,175,0.55)"
+      : "rgba(226,232,240,0.95)";
+    const iconCellBg = isDark ? "rgba(15,23,42,0.98)" : "#FFFFFF";
+    const iconCellBorder = isDark ? "rgba(51,65,85,1)" : "rgba(226,232,240,1)";
+    const iconCellActiveBg = isDark
+      ? "rgba(30,64,175,0.38)"
+      : "rgba(241,245,249,1)";
+    const iconCellActiveBorder = isDark
+      ? "rgba(129,140,248,1)"
+      : "rgba(203,213,225,1)";
+    const swatchBg = isDark ? "rgba(15,23,42,0.98)" : "#FFFFFF";
+    const ghostBtnBg = isDark
+      ? "rgba(15,23,42,0.85)"
+      : "rgba(148,163,184,0.18)";
+    const prefixBg = isDark ? "rgba(15,23,42,0.85)" : "rgba(15,23,42,0.06)";
+    const backBtnBg = card;
+    const backBtnBorder = stroke;
+    return {
+      bg,
+      card,
+      text,
+      muted,
+      inputBg,
+      stroke,
+      previewCard,
+      pickerBg,
+      pickerStroke,
+      iconCellBg,
+      iconCellBorder,
+      iconCellActiveBg,
+      iconCellActiveBorder,
+      swatchBg,
+      ghostBtnBg,
+      prefixBg,
+      backBtnBg,
+      backBtnBorder,
+    };
+  }, [isDark]);
+
+  const [name, setName] = useState("");
+  const [initialBalance, setInitialBalance] = useState("0");
+  const [description, setDescription] = useState("");
+
+  const [icon, setIcon] = useState<string>(ICONS[0]);
+  const [selectedSwatchKey, setSelectedSwatchKey] = useState<string>("teal");
+  const [color, setColor] = useState<string>("#0F766E");
+
+  const [saving, setSaving] = useState(false);
+
+  const fade = useRef(new Animated.Value(0)).current;
+  const rise = useRef(new Animated.Value(10)).current;
+  useEffect(() => {
+    fade.setValue(0);
+    rise.setValue(10);
+    Animated.parallel([
+      Animated.timing(fade, {
+        toValue: 1,
+        duration: 360,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(rise, {
+        toValue: 0,
+        duration: 360,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fade, rise]);
+
+  const balanceNum = useMemo(
+    () => Number((initialBalance || "").replace(/[^\d]/g, "") || 0),
+    [initialBalance],
+  );
+
+  const onSubmit = useCallback(async () => {
+    if (!name.trim()) {
+      Toast.show({ type: "error", text1: "Vui lòng nhập tên ví" });
+      return;
+    }
+    try {
+      setSaving(true);
+      await createWallet({
+        name: name.trim(),
+        balance: balanceNum,
+        description: description?.trim() || null,
+        icon,
+        color, // API lưu primary
+      });
+      Toast.show({ type: "success", text1: "Thêm ví thành công" });
+      navigation.goBack();
+    } catch (e: any) {
+      Toast.show({
+        type: "error",
+        text1: e?.response?.data?.message ?? "Không thêm được ví",
+      });
+    } finally {
+      setSaving(false);
+    }
+  }, [name, balanceNum, description, icon, color, navigation]);
+
+  const Preview = () => (
+    <View
+      style={[
+        styles.previewCard,
+        {
+          backgroundColor: ui.previewCard,
+          borderColor: ui.stroke,
+          borderTopColor: color,
+          borderLeftColor: color,
+        },
+      ]}
+    >
+      <View style={[styles.previewCircle, { backgroundColor: color }]}>
+        <Text style={{ fontSize: 18 }}>{icon}</Text>
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text
+          style={[styles.previewName, { color: ui.text }]}
+          numberOfLines={1}
+        >
+          {name.trim() ? name.trim() : "Tên ví"}
+        </Text>
+        <Text
+          style={[styles.previewDesc, { color: ui.muted }]}
+          numberOfLines={1}
+        >
+          {description.trim() ? description.trim() : "Mô tả (tuỳ chọn)"}
+        </Text>
+      </View>
+      <View style={{ alignItems: "flex-end" }}>
+        <Text style={[styles.previewBalance, { color }]} numberOfLines={1}>
+          {VND(balanceNum)}
+        </Text>
+      </View>
+    </View>
+  );
+
+  const renderIcon = ({ item }: { item: string }) => {
+    const active = item === icon;
+    return (
+      <Pressable
+        onPress={() => setIcon(item)}
+        style={({ pressed }) => [
+          styles.iconCell,
+          {
+            backgroundColor: ui.iconCellBg,
+            borderColor: ui.iconCellBorder,
+            opacity: pressed ? 0.9 : 1,
+          },
+          active && {
+            backgroundColor: ui.iconCellActiveBg,
+            borderColor: ui.iconCellActiveBorder,
+          },
+        ]}
+      >
+        <Text style={{ fontSize: 18 }}>{item}</Text>
+      </Pressable>
+    );
+  };
+
+  const renderSwatch = ({ item }: { item: ColorSwatch }) => {
+    const active = item.key === selectedSwatchKey;
+    const content =
+      item.type === "solid" ? (
+        <View style={styles.colorCell} />
+      ) : (
+        <LinearGradient
+          colors={item.colors}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.colorCell}
+        />
+      );
+
+    return (
+      <Pressable
+        onPress={() => {
+          setSelectedSwatchKey(item.key);
+          setColor(item.primary);
+        }}
+        style={({ pressed }) => [
+          styles.swatchWrap,
+          {
+            backgroundColor: ui.swatchBg,
+            borderColor: ui.iconCellBorder,
+            opacity: pressed ? 0.9 : 1,
+          },
+          active && {
+            borderColor: ui.iconCellActiveBorder,
+            borderWidth: 2,
+            padding: 3,
+          },
+        ]}
+      >
+        {/* solid swatch dùng primary màu */}
+        {item.type === "solid" ? (
+          <View style={[styles.colorCell, { backgroundColor: item.primary }]} />
+        ) : (
+          content
+        )}
+      </Pressable>
+    );
+  };
+
+  return (
+    <SafeAreaView style={[styles.safe, { backgroundColor: ui.bg }]}>
+      <View style={styles.page}>
+        <ScrollView
+          contentContainerStyle={styles.container}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.topRow}>
+            <Pressable
+              onPress={() => navigation.goBack()}
+              style={({ pressed }) => [
+                styles.backBtn,
+                {
+                  backgroundColor: ui.backBtnBg,
+                  borderColor: ui.backBtnBorder,
+                  opacity: pressed ? 0.85 : 1,
+                },
+              ]}
+              hitSlop={10}
+            >
+              <Ionicons name="chevron-back" size={22} color={ui.text} />
+            </Pressable>
+          </View>
+
+          <Text style={[styles.h1, { color: ui.text }]}>Thêm ví mới</Text>
+          <Text style={[styles.h2, { color: ui.muted }]}>
+            Tạo ví mới để quản lý nguồn tiền
+          </Text>
+
+          <Animated.View
+            style={{ opacity: fade, transform: [{ translateY: rise }] }}
+          >
+            <Preview />
+
+            <View
+              style={[
+                styles.card,
+                { backgroundColor: ui.card, borderColor: ui.stroke },
+              ]}
+            >
+              <Text style={[styles.label, { color: ui.text }]}>Tên ví</Text>
+              <View
+                style={[
+                  styles.inputWrap,
+                  {
+                    backgroundColor: ui.inputBg,
+                    borderColor: ui.stroke,
+                  },
+                ]}
+              >
+                <TextInput
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Ví tiết kiệm, ví Mary..."
+                  placeholderTextColor={ui.muted}
+                  style={[styles.input, { color: ui.text }]}
+                />
+              </View>
+
+              <Text style={[styles.label, { marginTop: 12, color: ui.text }]}>
+                Số dư ban đầu
+              </Text>
+              <View
+                style={[
+                  styles.inputWrap,
+                  {
+                    backgroundColor: ui.inputBg,
+                    borderColor: ui.stroke,
+                  },
+                ]}
+              >
+                <View style={styles.prefixRow}>
+                  <View
+                    style={[
+                      styles.prefixBadge,
+                      { backgroundColor: ui.prefixBg },
+                    ]}
+                  >
+                    <Text style={[styles.prefixText, { color: ui.muted }]}>
+                      đ
+                    </Text>
+                  </View>
+                  <TextInput
+                    value={initialBalance}
+                    onChangeText={(t) =>
+                      setInitialBalance(t.replace(/[^\d]/g, ""))
+                    }
+                    keyboardType="number-pad"
+                    placeholder="0"
+                    placeholderTextColor={ui.muted}
+                    style={[styles.input, { flex: 1, color: ui.text }]}
+                  />
+                </View>
+              </View>
+
+              <Text style={[styles.label, { marginTop: 12, color: ui.text }]}>
+                Mô tả
+              </Text>
+              <View
+                style={[
+                  styles.inputWrap,
+                  {
+                    backgroundColor: ui.inputBg,
+                    borderColor: ui.stroke,
+                  },
+                ]}
+              >
+                <TextInput
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholder="Mô tả ví (tùy chọn)"
+                  placeholderTextColor={ui.muted}
+                  style={[styles.input, { color: ui.text }]}
+                />
+              </View>
+
+              <Text style={[styles.label, { marginTop: 14, color: ui.text }]}>
+                Icon
+              </Text>
+              <View
+                style={[
+                  styles.pickerCard,
+                  {
+                    backgroundColor: ui.pickerBg,
+                    borderColor: ui.pickerStroke,
+                  },
+                ]}
+              >
+                <FlatList
+                  data={ICONS}
+                  keyExtractor={(it) => it}
+                  renderItem={renderIcon}
+                  numColumns={6}
+                  scrollEnabled={false}
+                  columnWrapperStyle={styles.gridRow}
+                />
+              </View>
+
+              <Text style={[styles.label, { marginTop: 14, color: ui.text }]}>
+                Màu sắc
+              </Text>
+              <View
+                style={[
+                  styles.pickerCard,
+                  {
+                    backgroundColor: ui.pickerBg,
+                    borderColor: ui.pickerStroke,
+                  },
+                ]}
+              >
+                <FlatList
+                  data={SWATCHES}
+                  keyExtractor={(it) => it.key}
+                  renderItem={renderSwatch}
+                  numColumns={6}
+                  scrollEnabled={false}
+                  columnWrapperStyle={styles.gridRow}
+                />
+              </View>
+
+              <View style={styles.btnRow}>
+                <Pressable
+                  onPress={() => navigation.goBack()}
+                  style={({ pressed }) => [
+                    styles.btnGhost,
+                    {
+                      backgroundColor: ui.ghostBtnBg,
+                      opacity: pressed ? 0.9 : 1,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.btnGhostText, { color: ui.text }]}>
+                    Hủy
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  disabled={saving}
+                  onPress={onSubmit}
+                  style={({ pressed }) => [
+                    styles.btnPrimary,
+                    { opacity: saving ? 0.6 : pressed ? 0.92 : 1 },
+                  ]}
+                >
+                  <Text style={styles.btnPrimaryText}>Thêm ví</Text>
+                </Pressable>
+              </View>
+            </View>
+          </Animated.View>
+        </ScrollView>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: "#F8FAFC" },
+  page: {
+    flex: 1,
+    width: "100%",
+    maxWidth: 560,
+    alignSelf: "center",
+    paddingHorizontal: 16,
+    paddingTop: 6,
+  },
+  container: { paddingBottom: 18 },
+
+  topRow: { height: 46, justifyContent: "center" },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(15,23,42,0.06)",
+  },
+
+  h1: {
+    marginTop: 6,
+    fontFamily: "Faustina_700Bold",
+    fontSize: 20,
+    color: "#0F172A",
+  },
+  h2: {
+    marginTop: 6,
+    fontFamily: "Faustina_400Regular",
+    fontSize: 13,
+    color: "#64748B",
+    lineHeight: 18,
+  },
+
+  previewCard: {
+    marginTop: 14,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(15,23,42,0.06)",
+    borderTopWidth: 3,
+    borderLeftWidth: 3,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  previewCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  previewName: {
+    fontFamily: "Faustina_700Bold",
+    color: "#0F172A",
+    fontSize: 14.5,
+  },
+  previewDesc: {
+    marginTop: 2,
+    fontFamily: "Faustina_400Regular",
+    color: "#64748B",
+    fontSize: 12.5,
+  },
+  previewBalance: { fontFamily: "Faustina_700Bold", fontSize: 14.5 },
+
+  card: {
+    marginTop: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(15,23,42,0.06)",
+  },
+
+  label: {
+    fontFamily: "Faustina_600SemiBold",
+    fontSize: 12.5,
+    color: "#0F172A",
+  },
+
+  inputWrap: {
+    marginTop: 8,
+    borderRadius: 14,
+    backgroundColor: "rgba(148,163,184,0.16)",
+    height: 44,
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "rgba(15,23,42,0.06)",
+  },
+  input: { fontFamily: "Faustina_500Medium", fontSize: 13, color: "#0F172A" },
+
+  prefixRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  prefixBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 10,
+    backgroundColor: "rgba(15,23,42,0.06)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  prefixText: {
+    fontFamily: "Faustina_700Bold",
+    color: "#64748B",
+    fontSize: 12.5,
+  },
+
+  pickerCard: {
+    marginTop: 8,
+    borderRadius: 16,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "rgba(226,232,240,0.95)",
+    padding: 10,
+  },
+  gridRow: { justifyContent: "space-between", marginBottom: 10 },
+
+  iconCell: {
+    flex: 1,
+    height: 38,
+    marginHorizontal: 4,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(226,232,240,1)",
+  },
+  iconCellActive: {
+    backgroundColor: "rgba(241,245,249,1)",
+    borderColor: "rgba(203,213,225,1)",
+  },
+
+  swatchWrap: {
+    flex: 1,
+    height: 38,
+    marginHorizontal: 4,
+    borderRadius: 12,
+    padding: 4,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "rgba(226,232,240,1)",
+  },
+  colorCell: { flex: 1, borderRadius: 10 },
+
+  btnRow: { flexDirection: "row", gap: 12, marginTop: 16 },
+  btnGhost: {
+    flex: 1,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "rgba(148,163,184,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnGhostText: {
+    fontFamily: "Faustina_700Bold",
+    fontSize: 13.5,
+    color: "#0F172A",
+  },
+
+  btnPrimary: {
+    flex: 1,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "#34D399",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: Platform.OS === "android" ? 4 : 0,
+  },
+  btnPrimaryText: {
+    fontFamily: "Faustina_700Bold",
+    fontSize: 13.5,
+    color: "#063B2B",
+  },
+});
