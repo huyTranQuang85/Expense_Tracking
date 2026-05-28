@@ -1,6 +1,9 @@
 import { StyleSheet } from "react-native";
 
 export const GREEN = "#4EECA5";
+export const LIGHT_ACCENT = "#0F766E";
+export const LIGHT_ACCENT_SOFT = "#E6F4EF";
+export const LIGHT_ACCENT_TEXT = "#064E3B";
 export const INCOME_BG = "rgba(78,236,165,0.45)";
 export const EXPENSE_BG = "rgba(252,165,165,0.55)";
 
@@ -16,6 +19,11 @@ export function getGroupUi(isDark: boolean) {
         soft: "rgba(15,23,42,0.04)",
         overlay: "rgba(2,6,23,0.45)",
         danger: "#EF4444",
+        accent: LIGHT_ACCENT,
+        accentSoft: LIGHT_ACCENT_SOFT,
+        accentText: LIGHT_ACCENT_TEXT,
+        iconBg: LIGHT_ACCENT_SOFT,
+        iconColor: LIGHT_ACCENT,
       }
     : {
         bg: "#020617",
@@ -27,6 +35,11 @@ export function getGroupUi(isDark: boolean) {
         soft: "rgba(148,163,184,0.12)",
         overlay: "rgba(2,6,23,0.72)",
         danger: "#F97373",
+        accent: GREEN,
+        accentSoft: "rgba(78,236,165,0.18)",
+        accentText: "#BBF7D0",
+        iconBg: "rgba(78,236,165,0.13)",
+        iconColor: GREEN,
       };
 }
 

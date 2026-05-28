@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -22,6 +23,7 @@ import { useTheme } from "../../theme/ThemeContext";
 import {
   getGroupContributions,
   GroupContribution,
+  reverseContribution,
 } from "../../services/groupFinance";
 import {
   commonStyles,
@@ -61,7 +63,11 @@ export default function ContributionHistoryScreen() {
   const [items, setItems] = useState<GroupContribution[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const total = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const total = items.reduce(
+    (sum, item) =>
+      item.status === "reversed" ? sum : sum + Number(item.amount || 0),
+    0,
+  );
 
   const load = useCallback(async () => {
     try {
@@ -81,6 +87,31 @@ export default function ContributionHistoryScreen() {
       load();
     }, [load]),
   );
+
+  const onReverse = (item: GroupContribution) => {
+    Alert.alert(
+      "Hoàn tác đóng góp",
+      "Khoản đóng góp sẽ được đánh dấu hoàn tác. Nếu khoản này được chuyển từ ví cá nhân, giao dịch cá nhân liên quan sẽ được đưa vào giỏ rác để trả tiền lại ví.",
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Hoàn tác",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await reverseContribution(groupId, item.id, {
+                reason: "Hoàn tác từ lịch sử đóng góp",
+              });
+              Toast.show({ type: "success", text1: "Đã hoàn tác đóng góp" });
+              load();
+            } catch (e) {
+              Toast.show({ type: "error", text1: getErrMsg(e) });
+            }
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <View style={[commonStyles.root, { backgroundColor: ui.bg }]}>
@@ -170,9 +201,42 @@ export default function ContributionHistoryScreen() {
                   </Text>
                 </View>
 
-                <Text style={[styles.amount, { color: GREEN }]}>
-                  +{formatMoney(item.amount)}
-                </Text>
+                <View style={styles.rightCol}>
+                  <Text
+                    style={[
+                      styles.amount,
+                      { color: item.status === "reversed" ? ui.muted : GREEN },
+                    ]}
+                  >
+                    {item.status === "reversed" ? "" : "+"}
+                    {formatMoney(item.amount)}
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.statusText,
+                      {
+                        color: item.status === "reversed" ? ui.danger : GREEN,
+                      },
+                    ]}
+                  >
+                    {item.status === "reversed" ? "Đã hoàn tác" : "Hoàn tất"}
+                  </Text>
+
+                  {item.status !== "reversed" && (
+                    <Pressable
+                      onPress={() => onReverse(item)}
+                      style={[
+                        styles.reverseBtn,
+                        { backgroundColor: "rgba(239,68,68,0.12)" },
+                      ]}
+                    >
+                      <Text style={[styles.reverseText, { color: ui.danger }]}>
+                        Hoàn tác
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
               </View>
             )}
           />
@@ -211,7 +275,23 @@ const styles = StyleSheet.create({
   },
   title: { fontFamily: "Faustina_700Bold", fontSize: 14.5 },
   desc: { marginTop: 3, fontFamily: "Faustina_400Regular", fontSize: 12.5 },
+  rightCol: { alignItems: "flex-end", maxWidth: 116 },
   amount: { fontFamily: "Faustina_700Bold", fontSize: 13.5 },
+  statusText: {
+    marginTop: 3,
+    fontFamily: "Faustina_700Bold",
+    fontSize: 10.5,
+  },
+  reverseBtn: {
+    marginTop: 7,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  reverseText: {
+    fontFamily: "Faustina_700Bold",
+    fontSize: 10.5,
+  },
   emptyWrap: {
     flex: 1,
     alignItems: "center",

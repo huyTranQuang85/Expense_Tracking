@@ -38,11 +38,26 @@ import {
   updateContributionPlan,
 } from "../../services/groupFinance";
 import { getGroupMembers, GroupMember } from "../../services/groups";
+import { me } from "../../services/auth";
+import { fetchMyWallets, Wallet } from "../../services/wallets";
+import { fetchAllCategories, Category } from "../../services/categories";
 
 type Rt = RouteProp<GroupStackParamList, "ContributionPlanDetail">;
 
 function formatMoney(value?: number | null) {
   return Number(value || 0).toLocaleString("vi-VN") + " đ";
+}
+
+function getUserIdFromMe(user: any) {
+  return (
+    user?.id ||
+    user?.userId ||
+    user?.user_id ||
+    user?.data?.id ||
+    user?.data?.userId ||
+    user?.data?.user_id ||
+    null
+  );
 }
 
 export default function ContributionPlanDetailScreen() {
@@ -62,6 +77,9 @@ export default function ContributionPlanDetailScreen() {
     null,
   );
   const [members, setMembers] = useState<GroupMember[]>([]);
+  const [myUserId, setMyUserId] = useState<string | null>(null);
+  const [personalWallets, setPersonalWallets] = useState<Wallet[]>([]);
+  const [expenseCategories, setExpenseCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [assignOpen, setAssignOpen] = useState(false);
@@ -72,16 +90,31 @@ export default function ContributionPlanDetailScreen() {
   const [defaultAmount, setDefaultAmount] = useState("");
   const [payAmount, setPayAmount] = useState("");
   const [note, setNote] = useState("");
+  const [sourceWalletId, setSourceWalletId] = useState<number | null>(null);
+  const [sourceCategoryId, setSourceCategoryId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [d, m] = await Promise.all([
+      const [d, m, wallets, categories, user] = await Promise.all([
         getContributionPlanDetail(groupId, planId),
         getGroupMembers(groupId),
+        fetchMyWallets(),
+        fetchAllCategories(),
+        me().catch(() => null),
       ]);
+
       setDetail(d);
       setMembers(m);
+      setPersonalWallets(Array.isArray(wallets) ? wallets : []);
+      setExpenseCategories(
+        Array.isArray(categories)
+          ? categories.filter((c) => c.type === "expense")
+          : [],
+      );
+
+      const id = getUserIdFromMe(user);
+      if (id) setMyUserId(String(id));
     } catch (e) {
       Toast.show({ type: "error", text1: getErrMsg(e) });
     } finally {
@@ -146,6 +179,8 @@ export default function ContributionPlanDetailScreen() {
     );
     setPayAmount(String(remaining || ""));
     setNote("");
+    setSourceWalletId(null);
+    setSourceCategoryId(null);
     setContributeOpen(true);
   };
 
@@ -154,6 +189,13 @@ export default function ContributionPlanDetailScreen() {
     const amount = Number(payAmount);
     if (!amount || amount <= 0) {
       return Alert.alert("Sai số tiền", "Số tiền đóng góp phải lớn hơn 0");
+    }
+
+    if (sourceWalletId && !sourceCategoryId) {
+      return Alert.alert(
+        "Thiếu danh mục",
+        "Cần chọn danh mục cá nhân cho khoản đóng góp nhóm",
+      );
     }
 
     try {
@@ -165,10 +207,16 @@ export default function ContributionPlanDetailScreen() {
         userId: selectedAssignment.userId,
         amount,
         note: note.trim() || undefined,
+        sourceWalletId: sourceWalletId || undefined,
+        sourceCategoryId: sourceWalletId
+          ? sourceCategoryId || undefined
+          : undefined,
       });
       Toast.show({ type: "success", text1: "Đã ghi nhận đóng góp" });
       setContributeOpen(false);
       setSelectedAssignment(null);
+      setSourceWalletId(null);
+      setSourceCategoryId(null);
       load();
     } catch (e) {
       Toast.show({ type: "error", text1: getErrMsg(e) });
@@ -413,19 +461,21 @@ export default function ContributionPlanDetailScreen() {
                   />
                 </View>
 
-                {isOwner && item.status !== "paid" && (
-                  <Pressable
-                    onPress={() => openRecord(item)}
-                    style={[
-                      commonStyles.primaryBtn,
-                      { marginTop: 12, backgroundColor: GREEN },
-                    ]}
-                  >
-                    <Text style={commonStyles.primaryBtnText}>
-                      Ghi nhận đóng góp
-                    </Text>
-                  </Pressable>
-                )}
+                {detail.status === "open" &&
+                  item.status !== "paid" &&
+                  (isOwner || String(item.userId) === String(myUserId)) && (
+                    <Pressable
+                      onPress={() => openRecord(item)}
+                      style={[
+                        commonStyles.primaryBtn,
+                        { marginTop: 12, backgroundColor: GREEN },
+                      ]}
+                    >
+                      <Text style={commonStyles.primaryBtnText}>
+                        Ghi nhận đóng góp
+                      </Text>
+                    </Pressable>
+                  )}
               </View>
             );
           }}
@@ -567,6 +617,111 @@ export default function ContributionPlanDetailScreen() {
               ]}
             />
 
+            {selectedAssignment &&
+            String(selectedAssignment.userId) === String(myUserId) ? (
+              <>
+                <Text style={[commonStyles.label, { color: ui.text }]}>
+                  Ví cá nhân nguồn
+                </Text>
+                <Text style={[styles.helperText, { color: ui.muted }]}>
+                  Chọn ví nếu muốn chuyển tiền thật từ ví cá nhân vào ví nhóm.
+                  Bỏ trống để chỉ ghi nhận thủ công.
+                </Text>
+                <View style={styles.choiceWrap}>
+                  <Pressable
+                    onPress={() => {
+                      setSourceWalletId(null);
+                      setSourceCategoryId(null);
+                    }}
+                    style={[
+                      styles.choicePill,
+                      {
+                        backgroundColor: !sourceWalletId ? GREEN : ui.input,
+                        borderColor: !sourceWalletId ? GREEN : ui.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.choiceText,
+                        { color: !sourceWalletId ? "#063B2B" : ui.text },
+                      ]}
+                    >
+                      Ghi nhận thủ công
+                    </Text>
+                  </Pressable>
+
+                  {personalWallets.map((wallet) => {
+                    const active = sourceWalletId === wallet.id;
+                    return (
+                      <Pressable
+                        key={wallet.id}
+                        onPress={() => setSourceWalletId(wallet.id)}
+                        style={[
+                          styles.choicePill,
+                          {
+                            backgroundColor: active ? GREEN : ui.input,
+                            borderColor: active ? GREEN : ui.border,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.choiceText,
+                            { color: active ? "#063B2B" : ui.text },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {wallet.name} • {formatMoney(wallet.balance)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                {sourceWalletId ? (
+                  <>
+                    <Text style={[commonStyles.label, { color: ui.text }]}>
+                      Danh mục chi tiêu cá nhân
+                    </Text>
+                    <View style={styles.choiceWrap}>
+                      {expenseCategories.map((category) => {
+                        const id = Number(category.id);
+                        const active = sourceCategoryId === id;
+                        return (
+                          <Pressable
+                            key={String(category.id)}
+                            onPress={() => setSourceCategoryId(id)}
+                            style={[
+                              styles.choicePill,
+                              {
+                                backgroundColor: active ? GREEN : ui.input,
+                                borderColor: active ? GREEN : ui.border,
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.choiceText,
+                                { color: active ? "#063B2B" : ui.text },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {category.name}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </>
+                ) : null}
+              </>
+            ) : (
+              <Text style={[styles.helperText, { color: ui.muted }]}>
+                Bạn đang ghi nhận hộ thành viên khác, khoản này không trừ ví cá
+                nhân.
+              </Text>
+            )}
             <View style={styles.modalBtns}>
               <Pressable
                 onPress={() => setContributeOpen(false)}
@@ -691,6 +846,29 @@ const styles = StyleSheet.create({
     fontFamily: "Faustina_400Regular",
     fontSize: 13,
     lineHeight: 19,
+  },
+  helperText: {
+    marginTop: 6,
+    fontFamily: "Faustina_400Regular",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  choiceWrap: {
+    marginTop: 8,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  choicePill: {
+    maxWidth: "100%",
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  choiceText: {
+    fontFamily: "Faustina_700Bold",
+    fontSize: 12,
   },
   modalBtns: { flexDirection: "row", gap: 12, marginTop: 18 },
 });
