@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -10,9 +11,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import * as SecureStore from "expo-secure-store";
 import { LinearGradient } from "expo-linear-gradient";
 import { STORAGE_KEYS } from "../constants/storage";
+import { setItem } from "../services/storage";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const CARD_H_RATIO = 0.38;
@@ -81,6 +82,7 @@ export default function OnboardingScreen({ navigation }: Props) {
   const bg = isDark ? "#0B0F14" : "#F4F6FA";
   const cardHeight = SCREEN_H * CARD_H_RATIO;
   const activeAccent = slides[index]?.accent ?? "#4CC2B1";
+  const defaultImage = slides[0]?.image;
 
   const goTo = (i: number) => {
     listRef.current?.scrollToOffset({ offset: i * SCREEN_W, animated: true });
@@ -93,7 +95,7 @@ export default function OnboardingScreen({ navigation }: Props) {
     }
 
     // Đã ở slide cuối cùng → đánh dấu đã onboarding
-    await SecureStore.setItemAsync(STORAGE_KEYS.onboardingDone, "1");
+    await setItem(STORAGE_KEYS.onboardingDone, "1");
 
     // Chuyển sang Auth
     navigation.replace("Auth");
@@ -183,9 +185,7 @@ export default function OnboardingScreen({ navigation }: Props) {
                     ]}
                   />
 
-                  <Animated.Image
-                    source={item.image}
-                    resizeMode="contain"
+                  <Animated.View
                     style={[
                       item.logoOnly ? styles.logoImage : styles.illusImage,
                       {
@@ -195,7 +195,13 @@ export default function OnboardingScreen({ navigation }: Props) {
                         ],
                       },
                     ]}
-                  />
+                  >
+                    <Image
+                      source={item.image ?? defaultImage}
+                      resizeMode="contain"
+                      style={StyleSheet.absoluteFill}
+                    />
+                  </Animated.View>
                 </View>
 
                 {/* Dots (đặt sát mép card, không che ảnh) */}

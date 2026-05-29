@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
+import { LinearGradient } from "expo-linear-gradient";
 import { changePassword } from "../services/auth";
 import { useTheme } from "../theme/ThemeContext";
 
@@ -143,12 +144,16 @@ export default function ChangePasswordScreen({ navigation }: Props) {
   }, [currentPw, newPw, rules.allOk, navigation]);
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: palette.bg }]}>
-      <View style={styles.page}>
-        <ScrollView
-          contentContainerStyle={styles.container}
-          showsVerticalScrollIndicator={false}
-        >
+    <LinearGradient
+      colors={isDark ? ["#050816", "#020617"] : ["#F8FBFF", "#ECFDF5"]}
+      style={styles.safe}
+    >
+      <SafeAreaView style={[styles.safe, { backgroundColor: "transparent" }]}> 
+        <View style={styles.page}>
+          <ScrollView
+            contentContainerStyle={styles.container}
+            showsVerticalScrollIndicator={false}
+          >
           <View style={styles.topRow}>
             <Pressable
               onPress={() => navigation.goBack()}
@@ -172,9 +177,16 @@ export default function ChangePasswordScreen({ navigation }: Props) {
             <View style={{ width: 34 }} />
           </View>
 
-          <Animated.View
-            style={{ opacity: fade, transform: [{ translateY: rise }] }}
-          >
+            <View style={[styles.hero, { backgroundColor: palette.card, borderColor: palette.stroke }, shadow]}>
+              <View style={styles.accentBar} />
+              <Text style={[styles.heroKicker, { color: palette.muted }]}>Bảo mật tài khoản</Text>
+              <Text style={[styles.heroTitle, { color: palette.text }]}>Đổi mật khẩu</Text>
+              <Text style={[styles.sub, { color: palette.muted }]}>Nhập mật khẩu hiện tại và mật khẩu mới để thay đổi mật khẩu của bạn.</Text>
+            </View>
+
+            <Animated.View
+              style={{ opacity: fade, transform: [{ translateY: rise }] }}
+            >
             <View
               style={[
                 styles.card,
@@ -182,6 +194,7 @@ export default function ChangePasswordScreen({ navigation }: Props) {
                 shadow,
               ]}
             >
+              <View style={styles.accentBar} />
               <Text style={[styles.sub, { color: palette.muted }]}>
                 Nhập mật khẩu hiện tại và mật khẩu mới để thay đổi mật khẩu của
                 bạn.
@@ -337,9 +350,10 @@ export default function ChangePasswordScreen({ navigation }: Props) {
               </View>
             </View>
           </Animated.View>
-        </ScrollView>
-      </View>
-    </SafeAreaView>
+          </ScrollView>
+        </View>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
@@ -355,6 +369,31 @@ const styles = StyleSheet.create({
   },
 
   container: { paddingTop: 10, paddingBottom: 18 },
+
+  hero: {
+    marginTop: 12,
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+  },
+  accentBar: {
+    width: 54,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: GREEN,
+    marginBottom: 12,
+  },
+  heroKicker: {
+    fontFamily: "Faustina_600SemiBold",
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  heroTitle: {
+    marginTop: 4,
+    fontFamily: "Faustina_700Bold",
+    fontSize: 24,
+  },
 
   shadow: {
     shadowColor: "#000",

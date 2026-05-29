@@ -1,7 +1,7 @@
 import { api } from "./api";
-import * as SecureStore from "expo-secure-store";
 import Toast from "react-native-toast-message";
 import * as Notifications from "expo-notifications";
+import { getItem, setItem } from "./storage";
 export type CurrentBudget = {
   id?: number;
   month?: string;
@@ -128,14 +128,14 @@ export async function checkBudgetAndNotifyInApp() {
     if (!newestInApp) return;
 
     // 3) Đọc id alert đã show lần trước trong SecureStore
-    const lastSeenId = await SecureStore.getItemAsync(LAST_ALERT_KEY);
+    const lastSeenId = await getItem(LAST_ALERT_KEY);
     if (lastSeenId && lastSeenId === String(newestInApp.id)) {
       // đã show alert này rồi, không show lại nữa
       return;
     }
 
     // 4) Lưu lại id alert mới nhất
-    await SecureStore.setItemAsync(LAST_ALERT_KEY, String(newestInApp.id));
+    await setItem(LAST_ALERT_KEY, String(newestInApp.id));
 
     // 5) Build nội dung thông báo
     const limit = newestInApp.limitAmount ?? budget.limitAmount ?? 0;

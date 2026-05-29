@@ -29,9 +29,11 @@ const schema = z
 
 type FormData = z.infer<typeof schema>;
 
-export default function RegisterScreen({
-  navigation,
-}: NativeStackScreenProps<AuthStackParamList, "Register">) {
+type Props = NativeStackScreenProps<AuthStackParamList, "Register"> & {
+  onAuthSuccess?: () => void;
+};
+
+export default function RegisterScreen({ navigation, onAuthSuccess }: Props) {
   const isDark = useColorScheme() === "dark";
   const bg = isDark ? "#0B0F14" : "#FFFFFF";
   const title = "#4EECA5";
@@ -52,18 +54,13 @@ export default function RegisterScreen({
   const onSubmit = handleSubmit(async (data) => {
     setApiError(undefined);
     try {
-      const r = await register({
+      await register({
         fullName: data.name,
         email: data.email,
         password: data.password,
       });
 
-      const fullName = r.user?.fullName ?? data.name;
-      const email = r.user?.email ?? data.email;
-      (navigation.getParent() as any)?.replace("SetupProfile", {
-        fullName,
-        email,
-      });
+      onAuthSuccess?.();
     } catch (e: any) {
       setApiError(
         e?.response?.data?.message ?? "Đăng ký thất bại. Vui lòng thử lại.",

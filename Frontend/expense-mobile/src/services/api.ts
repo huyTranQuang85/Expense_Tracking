@@ -1,15 +1,30 @@
 import axios from "axios";
-import * as SecureStore from "expo-secure-store";
+import { getItem } from "./storage";
 
 export const TOKEN_KEY = "auth_token";
 
+function resolveBaseURL() {
+  const raw = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+  const isWeb = typeof window !== "undefined";
+
+  if (isWeb) {
+    if (raw && (raw.startsWith("http://localhost") || raw.startsWith("http://127.0.0.1"))) {
+      return raw;
+    }
+
+    return "http://localhost:4000";
+  }
+
+  return raw || "http://localhost:4000";
+}
+
 export const api = axios.create({
-  baseURL: process.env.EXPO_PUBLIC_API_BASE_URL,
+  baseURL: resolveBaseURL(),
   timeout: 20000,
 });
 
 api.interceptors.request.use(async (config) => {
-  const token = await SecureStore.getItemAsync(TOKEN_KEY);
+  const token = await getItem(TOKEN_KEY);
 
   config.headers = config.headers ?? {};
 

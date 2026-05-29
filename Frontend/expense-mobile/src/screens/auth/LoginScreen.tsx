@@ -9,7 +9,6 @@ import {
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as SecureStore from "expo-secure-store";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { AuthStackParamList } from "../../app/AuthNavigator";
 import {
@@ -21,6 +20,7 @@ import {
   PrimaryButton,
 } from "../../components/AuthUI";
 import { login } from "../../services/auth";
+import { deleteItem, getItem, setItem } from "../../services/storage";
 
 const schema = z.object({
   email: z.string().email("Email không hợp lệ"),
@@ -30,9 +30,11 @@ type FormData = z.infer<typeof schema>;
 
 const REMEMBER_KEY = "remember_email";
 
-export default function LoginScreen({
-  navigation,
-}: NativeStackScreenProps<AuthStackParamList, "Login">) {
+type Props = NativeStackScreenProps<AuthStackParamList, "Login"> & {
+  onAuthSuccess?: () => void;
+};
+
+export default function LoginScreen({ navigation, onAuthSuccess }: Props) {
   const isDark = useColorScheme() === "dark";
   const bg = isDark ? "#0B0F14" : "#FFFFFF";
   const title = "#4EECA5";
@@ -53,7 +55,7 @@ export default function LoginScreen({
 
   React.useEffect(() => {
     (async () => {
-      const saved = await SecureStore.getItemAsync(REMEMBER_KEY);
+      const saved = await getItem(REMEMBER_KEY);
       if (saved) setValue("email", saved);
     })();
   }, [setValue]);
@@ -62,7 +64,14 @@ export default function LoginScreen({
     setApiError(undefined);
     try {
       await login(data);
-      (navigation.getParent() as any)?.replace("Main");
+
+      if (remember) {
+        await setItem(REMEMBER_KEY, data.email);
+      } else {
+        await deleteItem(REMEMBER_KEY);
+      }
+
+      onAuthSuccess?.();
     } catch (e: any) {
       setApiError(
         e?.response?.data?.message ?? "Đăng nhập thất bại. Vui lòng thử lại.",

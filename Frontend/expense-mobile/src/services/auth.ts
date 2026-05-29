@@ -1,5 +1,5 @@
-import * as SecureStore from "expo-secure-store";
 import { api, TOKEN_KEY } from "./api";
+import { setItem } from "./storage";
 
 export type LoginPayload = { email: string; password: string };
 export type RegisterPayload = {
@@ -19,14 +19,14 @@ function pickUser(resData: any) {
 export async function login(payload: LoginPayload) {
   const res = await api.post("/api/auth/login", payload);
   const token = pickToken(res.data);
-  if (token) await SecureStore.setItemAsync(TOKEN_KEY, token);
+  if (token) await setItem(TOKEN_KEY, token);
   return { raw: res.data, token, user: pickUser(res.data) };
 }
 
 export async function register(payload: RegisterPayload) {
   const res = await api.post("/api/auth/register", payload);
   const token = pickToken(res.data);
-  if (token) await SecureStore.setItemAsync(TOKEN_KEY, token);
+  if (token) await setItem(TOKEN_KEY, token);
   return { raw: res.data, token, user: pickUser(res.data) };
 }
 

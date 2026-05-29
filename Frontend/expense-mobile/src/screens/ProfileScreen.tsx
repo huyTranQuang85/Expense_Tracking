@@ -22,6 +22,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
+import { LinearGradient } from "expo-linear-gradient";
 import { fetchMe, Me, updateMyProfile } from "../services/profile";
 import { uploadMyAvatar } from "../services/settings";
 import { useTheme } from "../theme/ThemeContext";
@@ -224,12 +225,16 @@ export default function UpdateProfileScreen({ navigation }: any) {
   const hasAvatar = !!avatarUri;
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: palette.bg }]}>
-      <View style={styles.page}>
-        <ScrollView
-          contentContainerStyle={styles.container}
-          showsVerticalScrollIndicator={false}
-        >
+    <LinearGradient
+      colors={isDark ? ["#050816", "#020617"] : ["#F8FBFF", "#ECFDF5"]}
+      style={styles.safe}
+    >
+      <SafeAreaView style={[styles.safe, { backgroundColor: "transparent" }]}> 
+        <View style={styles.page}>
+          <ScrollView
+            contentContainerStyle={styles.container}
+            showsVerticalScrollIndicator={false}
+          >
           {/* Top row (back only) */}
           <View style={styles.topRow}>
             <Pressable
@@ -249,13 +254,16 @@ export default function UpdateProfileScreen({ navigation }: any) {
             </Pressable>
           </View>
 
-          <Text style={[styles.h1, { color: palette.text }]}>
-            Chỉnh sửa hồ sơ cá nhân
-          </Text>
+            <View style={[styles.hero, { backgroundColor: palette.card, borderColor: palette.stroke }, shadow]}>
+              <View style={styles.accentBar} />
+              <Text style={[styles.heroKicker, { color: palette.muted }]}>Hồ sơ cá nhân</Text>
+              <Text style={[styles.h1, { color: palette.text }]}>Chỉnh sửa hồ sơ cá nhân</Text>
+              <Text style={[styles.heroSub, { color: palette.muted }]}>Cập nhật tên, ảnh đại diện, số điện thoại và tiểu sử.</Text>
+            </View>
 
-          <Animated.View
-            style={{ opacity: fade, transform: [{ translateY: rise }] }}
-          >
+            <Animated.View
+              style={{ opacity: fade, transform: [{ translateY: rise }] }}
+            >
             {/* Avatar card */}
             <View
               style={[
@@ -264,7 +272,8 @@ export default function UpdateProfileScreen({ navigation }: any) {
                 shadow,
               ]}
             >
-              <Text style={[styles.cardTitle, { color: palette.text }]}>
+              <View style={styles.accentBar} />
+              <Text style={[styles.cardTitle, { color: palette.text }]}> 
                 Ảnh đại diện
               </Text>
 
@@ -319,6 +328,7 @@ export default function UpdateProfileScreen({ navigation }: any) {
                 shadow,
               ]}
             >
+              <View style={styles.accentBar} />
               <Text style={[styles.cardTitle, { color: palette.text }]}>
                 Thông tin cá nhân
               </Text>
@@ -473,8 +483,9 @@ export default function UpdateProfileScreen({ navigation }: any) {
 
           <View style={{ height: 18 }} />
         </ScrollView>
-      </View>
-    </SafeAreaView>
+        </View>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
@@ -492,6 +503,25 @@ const styles = StyleSheet.create({
   },
 
   container: { paddingBottom: 10 },
+
+  hero: {
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    marginTop: 10,
+  },
+  heroKicker: {
+    fontFamily: "Faustina_600SemiBold",
+    fontSize: 12,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  heroSub: {
+    marginTop: 6,
+    fontFamily: "Faustina_400Regular",
+    fontSize: 12.5,
+    lineHeight: 17,
+  },
 
   center: { alignItems: "center", justifyContent: "center" },
   loadingText: { marginTop: 10, fontFamily: "Faustina_400Regular" },
@@ -517,6 +547,13 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     marginTop: 12,
+  },
+  accentBar: {
+    width: 54,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: GREEN,
+    marginBottom: 12,
   },
   cardTitle: {
     fontFamily: "Faustina_700Bold",

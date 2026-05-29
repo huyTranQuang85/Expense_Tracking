@@ -338,7 +338,13 @@ export default function HomeScreen() {
           >
             {/* Header */}
             <View style={styles.headerRow}>
-              <View style={styles.headerLeft}>
+              <Pressable
+                onPress={() => nav.navigate("UpdateProfile")}
+                style={({ pressed }) => [
+                  styles.headerLeft,
+                  pressed && { opacity: 0.9 },
+                ]}
+              >
                 <View
                   style={[
                     styles.avatarBox,
@@ -378,7 +384,7 @@ export default function HomeScreen() {
                     {displayName}
                   </Text>
                 </View>
-              </View>
+              </Pressable>
 
               <Pressable
                 onPress={() => nav.navigate("AddTransaction")}
