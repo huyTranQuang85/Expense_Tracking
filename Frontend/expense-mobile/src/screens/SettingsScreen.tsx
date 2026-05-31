@@ -41,6 +41,7 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "";
 
 type Props = {
   navigation: any;
+  onLogout?: () => void;
 };
 
 const pickName = (me?: Me | null) =>
@@ -307,7 +308,7 @@ function Sheet({
 }
 
 // ───────────────── Main SettingsScreen ─────────────────
-export default function SettingsScreen({ navigation }: Props) {
+export default function SettingsScreen({ navigation, onLogout }: Props) {
   const [loading, setLoading] = useState(true);
   const [me, setMe] = useState<Me | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -442,22 +443,10 @@ export default function SettingsScreen({ navigation }: Props) {
   const doLogout = useCallback(async () => {
     await SecureStore.deleteItemAsync(TOKEN_KEY);
 
-    const rootNav = navigation.getParent()?.getParent();
-
-    if (rootNav) {
-      rootNav.reset({
-        index: 0,
-        routes: [{ name: "Auth" as never }],
-      });
-    } else {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "Auth" as never }],
-      });
-    }
+    onLogout?.();
 
     Toast.show({ type: "success", text1: "Đã đăng xuất" });
-  }, [navigation]);
+  }, [onLogout]);
 
   const confirmLogout = useCallback(() => {
     Alert.alert("Đăng xuất?", "Bạn có chắc chắn muốn đăng xuất khỏi BudgetF?", [

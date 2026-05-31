@@ -22,6 +22,8 @@ import { me } from "./src/services/auth";
 import { TOKEN_KEY } from "./src/services/api";
 import UpdateProfileScreen from "./src/screens/ProfileScreen";
 import ChangePasswordScreen from "./src/screens/ChangePasswordScreen";
+import SettingsScreen from "./src/screens/SettingsScreen";
+import ManageMonthlyBudgetScreen from "./src/screens/ManageMonthlyBudgetScreen";
 
 export type RootStackParamList = {
   RootTabs: undefined;
@@ -38,6 +40,8 @@ export type RootStackParamList = {
         walletId?: string;
       }
     | undefined;
+  WalletManager: undefined;
+  BudgetMonth: undefined;
   UpdateProfile: undefined;
   ChangePassword: undefined;
   Settings: undefined;
@@ -144,6 +148,14 @@ export default function App() {
                       component={TransactionTrashScreen}
                     />
                     <Stack.Screen name="WalletForm" component={WalletFormScreen} />
+                    <Stack.Screen
+                      name="WalletManager"
+                      component={WalletListScreen}
+                    />
+                    <Stack.Screen
+                      name="BudgetMonth"
+                      component={ManageMonthlyBudgetScreen}
+                    />
                     <Stack.Screen name="Categories" component={CategoriesNavigator} />
                     <Stack.Screen
                       name="UpdateProfile"
@@ -153,6 +165,14 @@ export default function App() {
                       name="ChangePassword"
                       component={ChangePasswordScreen}
                     />
+                    <Stack.Screen name="Settings">
+                      {(props) => (
+                        <SettingsScreen
+                          {...props}
+                          onLogout={() => setAuthenticated(false)}
+                        />
+                      )}
+                    </Stack.Screen>
                   </Stack.Navigator>
                 ) : (
                   <AuthNavigator onAuthSuccess={handleAuthSuccess} />

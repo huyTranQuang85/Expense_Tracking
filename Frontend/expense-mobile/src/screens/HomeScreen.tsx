@@ -338,53 +338,71 @@ export default function HomeScreen() {
           >
             {/* Header */}
             <View style={styles.headerRow}>
-              <Pressable
-                onPress={() => nav.navigate("UpdateProfile")}
-                style={({ pressed }) => [
-                  styles.headerLeft,
-                  pressed && { opacity: 0.9 },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.avatarBox,
+              <View style={styles.headerLeft}>
+                <Pressable
+                  onPress={() => nav.navigate("UpdateProfile")}
+                  style={({ pressed }) => [
+                    styles.profileHit,
+                    pressed && { opacity: 0.9 },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.avatarBox,
+                      {
+                        backgroundColor: ui.card,
+                        borderColor: ui.stroke,
+                      },
+                      shadow,
+                    ]}
+                  >
+                    {avatarUri ? (
+                      <Image
+                        source={{ uri: avatarUri }}
+                        style={styles.avatarImg}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Text
+                        style={{
+                          fontFamily: "Faustina_700Bold",
+                          color: isDark ? "#E8FFF4" : "#0E1B13",
+                        }}
+                      >
+                        {getInitials(displayName)}
+                      </Text>
+                    )}
+                  </View>
+
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.hello, { color: ui.muted }]}>
+                      Xin chào,
+                    </Text>
+                    <Text
+                      style={[styles.name, { color: GREEN }]}
+                      numberOfLines={1}
+                    >
+                      {displayName}
+                    </Text>
+                  </View>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => nav.navigate("Settings")}
+                  hitSlop={10}
+                  style={({ pressed }) => [
+                    styles.settingsBtn,
                     {
                       backgroundColor: ui.card,
                       borderColor: ui.stroke,
                     },
                     shadow,
+                    pressed && { opacity: 0.9 },
                   ]}
                 >
-                  {avatarUri ? (
-                    <Image
-                      source={{ uri: avatarUri }}
-                      style={styles.avatarImg}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <Text
-                      style={{
-                        fontFamily: "Faustina_700Bold",
-                        color: isDark ? "#E8FFF4" : "#0E1B13",
-                      }}
-                    >
-                      {getInitials(displayName)}
-                    </Text>
-                  )}
-                </View>
-
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[styles.hello, { color: ui.muted }]}>
-                    Xin chào,
-                  </Text>
-                  <Text
-                    style={[styles.name, { color: GREEN }]}
-                    numberOfLines={1}
-                  >
-                    {displayName}
-                  </Text>
-                </View>
-              </Pressable>
+                  <Ionicons name="settings-outline" size={18} color={ui.text} />
+                </Pressable>
+              </View>
 
               <Pressable
                 onPress={() => nav.navigate("AddTransaction")}
@@ -818,6 +836,16 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  profileHit: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+
+  settingsBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
 
   hello: { fontFamily: "Faustina_500Medium", fontSize: 13 },
   name: { fontFamily: "Faustina_700Bold", fontSize: 16.5 },
