@@ -21,6 +21,12 @@ import { checkBudgetAndNotifyInApp } from "../../services/budgets";
 import { useTheme } from "../../theme/ThemeContext";
 
 type Wallet = { id: string | number; name?: string; title?: string };
+type FieldErrors = {
+  amount?: string;
+  category?: string;
+  wallet?: string;
+  date?: string;
+};
 
 const BG = "#F3F5F7";
 const CARD = "#FFFFFF";
@@ -51,6 +57,12 @@ function parentKey(c: any) {
 }
 function safeText(x: any) {
   return String(x ?? "");
+}
+function walletKey(w: any) {
+  return w?.id ?? w?.wallet_id ?? w?.walletId ?? null;
+}
+function walletName(w: any) {
+  return w?.name ?? w?.wallet_name ?? w?.title ?? "Ví";
 }
 
 export default function AddTransactionScreen() {
@@ -97,6 +109,7 @@ export default function AddTransactionScreen() {
   const [amountText, setAmountText] = useState("");
   const [date, setDate] = useState(isoToday());
   const [description, setDescription] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [picker, setPicker] = useState<
     null | "category" | "subCategory" | "wallet"
@@ -121,12 +134,17 @@ export default function AddTransactionScreen() {
 
       const catsArr = Array.isArray(cats) ? cats : [];
       const wsArr = Array.isArray(ws) ? ws : [];
+      const normalizedWallets = wsArr.map((w: any) => ({
+        ...w,
+        id: walletKey(w),
+        name: walletName(w),
+      })).filter((w: any) => walletKey(w) != null && walletKey(w) !== "");
 
       setCategories(catsArr);
-      setWallets(wsArr);
+      setWallets(normalizedWallets);
 
       // default wallet
-      if (wsArr.length) setWalletId(wsArr[0]?.id);
+      if (normalizedWallets.length) setWalletId(walletKey(normalizedWallets[0]));
 
       // default category theo type
       const roots = catsArr.filter(
@@ -195,8 +213,15 @@ export default function AddTransactionScreen() {
   }, [categories, subCategoryId]);
 
   const walletLabel = useMemo(() => {
-    const w = wallets.find((x: any) => String(x.id) === String(walletId));
+    const w = wallets.find(
+      (x: any) => String(walletKey(x)) === String(walletId),
+    );
     return w?.name ?? w?.title ?? "";
+  }, [wallets, walletId]);
+
+  const isWalletSelected = useMemo(() => {
+    if (walletId == null || walletId === "") return false;
+    return wallets.some((w: any) => String(walletKey(w)) === String(walletId));
   }, [wallets, walletId]);
 
   const showToast = (msg: string) => {
@@ -210,19 +235,22 @@ export default function AddTransactionScreen() {
     });
   };
 
-  const validate = () => {
+  const validate = (): FieldErrors => {
+    const errors: FieldErrors = {};
     const amt = Number(amountText || "0");
-    if (!Number.isFinite(amt) || amt <= 0) return "Số tiền phải > 0";
-    if (!categoryId) return "Vui lòng chọn danh mục";
-    if (!walletId) return "Vui lòng chọn ví";
+    if (!Number.isFinite(amt) || amt <= 0) errors.amount = "Số tiền phải > 0";
+    if (!categoryId) errors.category = "Vui lòng chọn danh mục";
+    if (!isWalletSelected) errors.wallet = "Vui lòng chọn ví";
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
-      return "Ngày phải theo dạng YYYY-MM-DD";
-    return null;
+      errors.date = "Ngày phải theo dạng YYYY-MM-DD";
+    return errors;
   };
 
   const onSubmit = async () => {
-    const msg = validate();
-    if (msg) return showToast(msg);
+    const errors = validate();
+    setFieldErrors(errors);
+    const firstError = Object.values(errors)[0];
+    if (firstError) return showToast(firstError);
 
     try {
       setSubmitting(true);
@@ -239,7 +267,13 @@ export default function AddTransactionScreen() {
       await checkBudgetAndNotifyInApp();
 
       showToast("Thêm giao dịch thành công");
-      setTimeout(() => nav.goBack(), 450);
+      setTimeout(() => {
+        try {
+          nav.navigate("RootTabs", { screen: "TransactionList" });
+        } catch {
+          nav.goBack();
+        }
+      }, 450);
     } catch (e: any) {
       showToast(
         e?.response?.data?.message ??
@@ -292,12 +326,14 @@ export default function AddTransactionScreen() {
     placeholder,
     onPress,
     disabled,
+    error,
   }: {
     label: string;
     value: string;
     placeholder: string;
     onPress: () => void;
     disabled?: boolean;
+    error?: string;
   }) => (
     <View style={{ flex: 1 }}>
       <Text style={[styles.label, { color: ui.text }]}>{label}</Text>
@@ -308,6 +344,8 @@ export default function AddTransactionScreen() {
           styles.select,
           {
             backgroundColor: ui.input,
+            borderWidth: error ? 1 : 0,
+            borderColor: error ? "#EF4444" : "transparent",
             opacity: disabled ? 0.55 : pressed ? 0.9 : 1,
           },
         ]}
@@ -320,6 +358,7 @@ export default function AddTransactionScreen() {
         </Text>
         <Ionicons name="chevron-down" size={16} color={ui.muted} />
       </Pressable>
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>
   );
 
@@ -379,8 +418,12 @@ export default function AddTransactionScreen() {
               label="Danh mục"
               value={categoryLabel}
               placeholder="Chọn danh mục"
-              onPress={() => setPicker("category")}
+              onPress={() => {
+                setFieldErrors((prev) => ({ ...prev, category: undefined }));
+                setPicker("category");
+              }}
               disabled={loading || rootCategories.length === 0}
+              error={fieldErrors.category}
             />
             <FieldBox
               label="Danh mục con"
@@ -396,41 +439,75 @@ export default function AddTransactionScreen() {
           <View style={styles.twoCols}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.label, { color: ui.text }]}>Số tiền</Text>
-              <View style={[styles.inputRow, { backgroundColor: ui.input }]}>
+              <View
+                style={[
+                  styles.inputRow,
+                  {
+                    backgroundColor: ui.input,
+                    borderWidth: fieldErrors.amount ? 1 : 0,
+                    borderColor: fieldErrors.amount ? "#EF4444" : "transparent",
+                  },
+                ]}
+              >
                 <Text style={[styles.currency, { color: ui.muted }]}>₫</Text>
                 <TextInput
                   value={amountText}
-                  onChangeText={(t) => setAmountText(onlyDigits(t))}
+                  onChangeText={(t) => {
+                    setAmountText(onlyDigits(t));
+                    setFieldErrors((prev) => ({ ...prev, amount: undefined }));
+                  }}
                   keyboardType="numeric"
                   placeholder="0"
                   placeholderTextColor={ui.muted}
                   style={[styles.inputText, { color: ui.text }]}
                 />
               </View>
+              {fieldErrors.amount ? (
+                <Text style={styles.errorText}>{fieldErrors.amount}</Text>
+              ) : null}
             </View>
 
             <FieldBox
               label="Ví"
               value={walletLabel}
               placeholder="Chọn ví"
-              onPress={() => setPicker("wallet")}
+              onPress={() => {
+                setFieldErrors((prev) => ({ ...prev, wallet: undefined }));
+                setPicker("wallet");
+              }}
               disabled={loading || wallets.length === 0}
+              error={fieldErrors.wallet}
             />
           </View>
 
           <View style={{ height: 12 }} />
 
           <Text style={[styles.label, { color: ui.text }]}>Ngày</Text>
-          <View style={[styles.inputRow, { backgroundColor: ui.input }]}>
+          <View
+            style={[
+              styles.inputRow,
+              {
+                backgroundColor: ui.input,
+                borderWidth: fieldErrors.date ? 1 : 0,
+                borderColor: fieldErrors.date ? "#EF4444" : "transparent",
+              },
+            ]}
+          >
             <Ionicons name="calendar-outline" size={18} color={ui.muted} />
             <TextInput
               value={date}
-              onChangeText={setDate}
+              onChangeText={(v) => {
+                setDate(v);
+                setFieldErrors((prev) => ({ ...prev, date: undefined }));
+              }}
               placeholder="YYYY-MM-DD"
               placeholderTextColor={ui.muted}
               style={[styles.inputText, { color: ui.text }]}
             />
           </View>
+          {fieldErrors.date ? (
+            <Text style={styles.errorText}>{fieldErrors.date}</Text>
+          ) : null}
 
           <View style={{ height: 12 }} />
 
@@ -541,12 +618,13 @@ export default function AddTransactionScreen() {
         title="Chọn ví"
         selectedValue={walletId}
         items={wallets.map((w: any) => ({
-          label: w.name ?? w.title ?? "Ví",
-          value: w.id,
+          label: walletName(w),
+          value: walletKey(w),
         }))}
         onClose={() => setPicker(null)}
         onPick={(v) => {
           setWalletId(v);
+          setFieldErrors((prev) => ({ ...prev, wallet: undefined }));
           setPicker(null);
         }}
       />
@@ -627,6 +705,13 @@ const styles = StyleSheet.create({
   bottomBtnText: {
     fontFamily: "Faustina_700Bold",
     fontSize: 13,
+  },
+
+  errorText: {
+    marginTop: 6,
+    color: "#EF4444",
+    fontFamily: "Faustina_500Medium",
+    fontSize: 12,
   },
 
   shadow: {

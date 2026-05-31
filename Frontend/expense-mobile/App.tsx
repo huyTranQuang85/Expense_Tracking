@@ -11,7 +11,7 @@ import AuthNavigator from "./src/app/AuthNavigator";
 import HomeScreen from "./src/screens/HomeScreen";
 import CategoriesNavigator from "./src/screens/categories/CategoriesNavigator";
 import { CategoriesProvider } from "./src/screens/categories/CategoriesContext";
-import TransactionListScreen from "./src/screens/transaction/TransactionListScreen";
+import TransactionListScreen from "./src/screens/transaction/TransactionManagerScreen";
 import TransactionFormScreen from "./src/screens/transaction/TransactionFormScreen";
 import TransactionTrashScreen from "./src/screens/transaction/TransactionTrashScreen";
 import { TransactionProvider } from "./src/screens/transaction/TransactionContext";
@@ -40,6 +40,7 @@ export type RootStackParamList = {
         walletId?: string;
       }
     | undefined;
+  EditWallet: { wallet: any };
   WalletManager: undefined;
   BudgetMonth: undefined;
   UpdateProfile: undefined;
@@ -148,6 +149,7 @@ export default function App() {
                       component={TransactionTrashScreen}
                     />
                     <Stack.Screen name="WalletForm" component={WalletFormScreen} />
+                    <Stack.Screen name="EditWallet" component={WalletFormScreen} />
                     <Stack.Screen
                       name="WalletManager"
                       component={WalletListScreen}

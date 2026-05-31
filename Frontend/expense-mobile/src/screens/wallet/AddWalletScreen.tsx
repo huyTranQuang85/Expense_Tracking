@@ -220,7 +220,13 @@ export default function AddWalletScreen({ navigation }: Props) {
         color, // API lưu primary
       });
       Toast.show({ type: "success", text1: "Thêm ví thành công" });
-      navigation.goBack();
+      setTimeout(() => {
+        try {
+          navigation.navigate("WalletManager");
+        } catch {
+          navigation.goBack();
+        }
+      }, 250);
     } catch (e: any) {
       Toast.show({
         type: "error",

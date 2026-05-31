@@ -642,7 +642,7 @@ export default function ManageWalletScreen({ navigation }: any) {
             <Pressable
               onPress={() => {
                 hapticLight();
-                navigation.navigate("AddWallet");
+                navigation.navigate("WalletForm", { mode: "create" });
               }}
               style={({ pressed }) => [
                 styles.addBtnOld,
@@ -715,9 +715,19 @@ export default function ManageWalletScreen({ navigation }: any) {
             ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
             ListEmptyComponent={
               <View style={styles.emptyWrap}>
-                <Text style={[styles.emptyText, { color: ui.muted }]}>
+                <Text style={[styles.emptyText, { color: ui.muted }]}> 
                   Không có ví phù hợp.
                 </Text>
+                <View style={{ height: 12 }} />
+                <Pressable
+                  onPress={() => navigation.navigate("WalletForm", { mode: "create" })}
+                  style={({ pressed }) => [
+                    styles.emptyBtn,
+                    { opacity: pressed ? 0.92 : 1 },
+                  ]}
+                >
+                  <Text style={styles.emptyBtnText}>Thêm ví</Text>
+                </Pressable>
               </View>
             }
           />
@@ -1057,5 +1067,18 @@ const styles = StyleSheet.create({
     fontFamily: "Faustina_700Bold",
     color: "#0F172A",
     fontSize: 13.5,
+  },
+  emptyBtn: {
+    height: 42,
+    paddingHorizontal: 18,
+    borderRadius: 22,
+    backgroundColor: "#34D399",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyBtnText: {
+    fontFamily: "Faustina_700Bold",
+    color: "#063B2B",
+    fontSize: 13,
   },
 });
