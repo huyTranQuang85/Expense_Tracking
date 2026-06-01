@@ -3,7 +3,7 @@ const pool = require("../db");
 const { signToken } = require("../utils/jwt");
 const crypto = require("crypto");
 const SALT_ROUNDS = 10;
-
+const { sendPasswordResetEmail } = require("./emailService");
 async function registerUser({ fullName, email, password }) {
   const client = await pool.connect();
   try {
@@ -34,7 +34,7 @@ async function registerUser({ fullName, email, password }) {
 
     const user = result.rows[0];
 
-     // tạo settings mặc định
+    // tạo settings mặc định
     await client.query(
       `INSERT INTO settings (user_id) VALUES ($1)
        ON CONFLICT (user_id) DO NOTHING`,
@@ -102,6 +102,7 @@ async function loginUser({ email, password }) {
     token,
   };
 }
+
 async function getUserById(userId) {
   console.log("getUserById được gọi với:", userId);
   const result = await pool.query(
@@ -248,7 +249,6 @@ async function resetPasswordWithToken(rawToken, newPassword) {
 
   return { userId };
 }
-
 async function changePassword(userId, currentPassword, newPassword) {
   // Lấy user + password_hash hiện tại
   const result = await pool.query(
