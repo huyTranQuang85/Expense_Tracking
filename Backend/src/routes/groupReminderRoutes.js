@@ -1,6 +1,6 @@
 const express = require("express");
 const auth = require("../middlewares/authMiddleware");
-const groupReminderController = require("../controllers/groupReminderController.js");
+const groupReminderController = require("../controllers/groupReminderController");
 const {
   requireGroupMember,
   requireGroupOwner,

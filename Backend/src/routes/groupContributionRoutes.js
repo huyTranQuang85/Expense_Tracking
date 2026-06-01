@@ -46,6 +46,12 @@ router.post(
   groupContributionController.recordContribution,
 );
 
+router.post(
+  "/:groupId/contributions/:contributionId/reverse",
+  requireGroupMember,
+  groupContributionController.reverseContribution,
+);
+
 router.get(
   "/:groupId/contributions",
   requireGroupMember,

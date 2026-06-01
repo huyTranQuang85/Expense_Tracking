@@ -158,6 +158,7 @@ exports.updateTransaction = async (req, res, next) => {
       Number(req.params.groupId),
       Number(req.params.transactionId),
       req.body,
+      req.user.id,
     );
 
     res.json({ status: "success", data });
@@ -171,6 +172,7 @@ exports.deleteTransaction = async (req, res, next) => {
     await groupTransactionService.deleteTransaction(
       Number(req.params.groupId),
       Number(req.params.transactionId),
+      req.user.id,
     );
 
     res.json({
