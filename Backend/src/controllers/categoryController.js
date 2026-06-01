@@ -3,9 +3,11 @@ const categoryService = require("../services/categoryService");
 exports.getMyCategories = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { type } = req.query; // optional ?type=income/expense
+    const { type, includeSystem } = req.query; // optional ?type=income/expense
 
-    const categories = await categoryService.getCategories(userId, type);
+    const categories = await categoryService.getCategories(userId, type, {
+      includeSystem: String(includeSystem || "false") === "true",
+    });
 
     res.json({
       status: "success",

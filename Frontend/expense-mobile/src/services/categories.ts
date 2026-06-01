@@ -8,6 +8,9 @@ export type Category = {
   color?: string | null;
   parentCategoryId?: number | string | null;
   isGlobal?: boolean;
+  groupKey?: string | null;
+  sortOrder?: number;
+  isSystem?: boolean;
 };
 
 const unwrap = (res: any) => res?.data?.data ?? res?.data ?? res;

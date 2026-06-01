@@ -712,7 +712,7 @@ export default function SettingsScreen({ navigation, onLogout }: Props) {
             thumbColor={
               Platform.OS === "android"
                 ? mode === "dark"
-                  ? "#34D399"
+                  ? "#10B981"
                   : "#fff"
                 : undefined
             }
@@ -857,7 +857,7 @@ const styles = StyleSheet.create({
   },
 
   editBtn: {
-    backgroundColor: "#34D399",
+    backgroundColor: "#10B981",
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 18,

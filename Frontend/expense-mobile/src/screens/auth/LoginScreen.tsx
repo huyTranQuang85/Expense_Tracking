@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -36,9 +37,9 @@ type Props = NativeStackScreenProps<AuthStackParamList, "Login"> & {
 
 export default function LoginScreen({ navigation, onAuthSuccess }: Props) {
   const isDark = useColorScheme() === "dark";
-  const bg = isDark ? "#0B0F14" : "#FFFFFF";
-  const title = "#4EECA5";
-  const text = isDark ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.78)";
+  const bg = isDark ? "#080D14" : "#F6F7FB";
+  const title = isDark ? "#34D399" : "#047857";
+  const text = isDark ? "rgba(248,250,252,0.9)" : "#475569";
 
   const [remember, setRemember] = useState(true);
   const [apiError, setApiError] = useState<string | undefined>(undefined);
@@ -83,21 +84,34 @@ export default function LoginScreen({ navigation, onAuthSuccess }: Props) {
     <View style={[styles.container, { backgroundColor: bg }]}>
       <GreenBlob />
 
-      <View style={styles.topRow}>
-        <BackCircle
-          onPress={() => {
-            if (navigation.canGoBack()) navigation.goBack();
-            else navigation.replace("Login"); // hoặc navigation.navigate("Login")
-          }}
-        />
-      </View>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={styles.topRow}>
+          <BackCircle
+            onPress={() => {
+              if (navigation.canGoBack()) navigation.goBack();
+              else navigation.replace("Login"); // hoặc navigation.navigate("Login")
+            }}
+          />
+        </View>
 
       <Text style={[styles.title, { color: title }]}>Đăng Nhập</Text>
       <Text style={[styles.subtitle, { color: text }]}>
         Chào mừng bạn đã trở lại
       </Text>
 
-      <View style={styles.form}>
+      <View
+        style={[
+          styles.form,
+          {
+            backgroundColor: isDark ? "rgba(15,23,42,0.74)" : "rgba(255,255,255,0.78)",
+            borderColor: isDark ? "rgba(148,163,184,0.18)" : "rgba(15,23,42,0.06)",
+          },
+        ]}
+      >
         <Label>Email</Label>
         <Field
           placeholder="Nhập email của bạn"
@@ -131,7 +145,7 @@ export default function LoginScreen({ navigation, onAuthSuccess }: Props) {
                 styles.checkOuter,
                 {
                   borderColor: remember
-                    ? "#4EECA5"
+                    ? "#10B981"
                     : isDark
                       ? "rgba(255,255,255,0.35)"
                       : "rgba(0,0,0,0.3)",
@@ -165,11 +179,7 @@ export default function LoginScreen({ navigation, onAuthSuccess }: Props) {
         <ErrorText>{apiError}</ErrorText>
 
         <View style={{ height: 18 }} />
-        <PrimaryButton
-          title="Đăng nhập"
-          onPress={onSubmit}
-          disabled={isSubmitting}
-        />
+        <PrimaryButton title="Đăng nhập" onPress={onSubmit} disabled={isSubmitting} />
 
         <View style={{ height: 18 }} />
 
@@ -180,21 +190,23 @@ export default function LoginScreen({ navigation, onAuthSuccess }: Props) {
           onPress={() => navigation.navigate("Register")}
           style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
         >
-          <Text style={[styles.footerLink, { color: "#4EECA5" }]}>Đăng ký</Text>
+          <Text style={[styles.footerLink, { color: title }]}>Đăng ký</Text>
         </Pressable>
       </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 22 },
+  scrollContent: { paddingBottom: 28 },
   topRow: { marginTop: 54, marginBottom: 10 },
   title: {
     textAlign: "center",
     fontFamily: "Faustina_700Bold",
-    fontSize: 34,
-    marginTop: 6,
+    fontSize: 36,
+    marginTop: 18,
   },
   subtitle: {
     textAlign: "center",
@@ -203,7 +215,12 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
 
-  form: { marginTop: 32 },
+  form: {
+    marginTop: 32,
+    borderRadius: 24,
+    padding: 16,
+    borderWidth: 1,
+  },
   rowBetween: {
     marginTop: 10,
     flexDirection: "row",
@@ -224,7 +241,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 999,
-    backgroundColor: "#4EECA5",
+    backgroundColor: "#10B981",
   },
   rememberText: { fontFamily: "Faustina_500Medium", fontSize: 13.5 },
 

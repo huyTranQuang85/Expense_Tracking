@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { StyleSheet, Text, View, useColorScheme } from "react-native";
+import { ScrollView, StyleSheet, Text, View, useColorScheme } from "react-native";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -35,9 +35,9 @@ type Props = NativeStackScreenProps<AuthStackParamList, "Register"> & {
 
 export default function RegisterScreen({ navigation, onAuthSuccess }: Props) {
   const isDark = useColorScheme() === "dark";
-  const bg = isDark ? "#0B0F14" : "#FFFFFF";
-  const title = "#4EECA5";
-  const text = isDark ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.78)";
+  const bg = isDark ? "#080D14" : "#F6F7FB";
+  const title = isDark ? "#34D399" : "#047857";
+  const text = isDark ? "rgba(248,250,252,0.9)" : "#475569";
 
   const [apiError, setApiError] = useState<string | undefined>(undefined);
 
@@ -72,21 +72,34 @@ export default function RegisterScreen({ navigation, onAuthSuccess }: Props) {
     <View style={[styles.container, { backgroundColor: bg }]}>
       <GreenBlob />
 
-      <View style={styles.topRow}>
-        <BackCircle
-          onPress={() => {
-            if (navigation.canGoBack()) navigation.goBack();
-            else navigation.replace("Login"); // hoặc navigation.navigate("Login")
-          }}
-        />
-      </View>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={styles.topRow}>
+          <BackCircle
+            onPress={() => {
+              if (navigation.canGoBack()) navigation.goBack();
+              else navigation.replace("Login"); // hoặc navigation.navigate("Login")
+            }}
+          />
+        </View>
 
       <Text style={[styles.title, { color: title }]}>Đăng Ký</Text>
       <Text style={[styles.subtitle, { color: text }]}>
         Tạo tài khoản mới của bạn
       </Text>
 
-      <View style={styles.form}>
+      <View
+        style={[
+          styles.form,
+          {
+            backgroundColor: isDark ? "rgba(15,23,42,0.74)" : "rgba(255,255,255,0.78)",
+            borderColor: isDark ? "rgba(148,163,184,0.18)" : "rgba(15,23,42,0.06)",
+          },
+        ]}
+      >
         <Label>Họ và tên</Label>
         <Field
           placeholder="Nhập họ và tên của bạn"
@@ -146,23 +159,25 @@ export default function RegisterScreen({ navigation, onAuthSuccess }: Props) {
         </Text>
         <Text
           onPress={() => navigation.replace("Login")}
-          style={[styles.footerLink, { color: "#4EECA5", textAlign: "center" }]}
+          style={[styles.footerLink, { color: title, textAlign: "center" }]}
         >
           Đăng nhập
         </Text>
       </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 22 },
+  scrollContent: { paddingBottom: 28 },
   topRow: { marginTop: 54, marginBottom: 10 },
   title: {
     textAlign: "center",
     fontFamily: "Faustina_700Bold",
-    fontSize: 34,
-    marginTop: 6,
+    fontSize: 36,
+    marginTop: 18,
   },
   subtitle: {
     textAlign: "center",
@@ -170,7 +185,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 6,
   },
-  form: { marginTop: 26 },
+  form: {
+    marginTop: 26,
+    borderRadius: 24,
+    padding: 16,
+    borderWidth: 1,
+  },
   footerText: { fontFamily: "Faustina_500Medium", fontSize: 14 },
   footerLink: { fontFamily: "Faustina_700Bold", fontSize: 16, marginTop: 6 },
 });

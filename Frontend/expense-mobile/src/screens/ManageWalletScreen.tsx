@@ -32,7 +32,7 @@ import { deleteWallet, fetchMyWallets, Wallet } from "../services/wallets";
 import { useTheme } from "../theme/ThemeContext";
 
 const VND = (n: number) => `${Math.round(n).toLocaleString("vi-VN")}₫`;
-const GREEN = "#34D399";
+const GREEN = "#10B981";
 
 type UI = {
   bg: string;
@@ -45,7 +45,48 @@ type UI = {
   sheetBg: string;
   overlay: string;
   danger: string;
+  primary: string;
+  accent: string;
 };
+
+function walletIconName(raw?: string | null): keyof typeof Ionicons.glyphMap {
+  const value = String(raw ?? "").trim();
+  const map: Record<string, keyof typeof Ionicons.glyphMap> = {
+    "💰": "cash-outline",
+    "💳": "card-outline",
+    "🏦": "business-outline",
+    "🪙": "server-outline",
+    "🐷": "wallet-outline",
+    "👜": "bag-handle-outline",
+    "🎁": "gift-outline",
+    "🏠": "home-outline",
+    "🚗": "car-outline",
+    "🍔": "fast-food-outline",
+    "🧾": "receipt-outline",
+    "📦": "cube-outline",
+    cash: "cash-outline",
+    card: "card-outline",
+    bank: "business-outline",
+    wallet: "wallet-outline",
+    home: "home-outline",
+    car: "car-outline",
+    food: "fast-food-outline",
+    receipt: "receipt-outline",
+    "cash-outline": "cash-outline",
+    "card-outline": "card-outline",
+    "business-outline": "business-outline",
+    "wallet-outline": "wallet-outline",
+    "home-outline": "home-outline",
+    "car-outline": "car-outline",
+    "fast-food-outline": "fast-food-outline",
+    "receipt-outline": "receipt-outline",
+    "bag-handle-outline": "bag-handle-outline",
+    "gift-outline": "gift-outline",
+    "cube-outline": "cube-outline",
+  };
+
+  return map[value] ?? "wallet-outline";
+}
 
 async function hapticLight() {
   try {
@@ -293,7 +334,7 @@ function ActionSheet({
 function TotalBalanceCard({ total, count }: { total: number; count: number }) {
   return (
     <LinearGradient
-      colors={["#0F766E", "#2CA58D"]}
+      colors={["#0F172A", "#0F766E", "#10B981"]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.totalCard}
@@ -325,7 +366,7 @@ function WalletCard({
   isDark: boolean;
 }) {
   const color = wallet.color || "#0F766E";
-  const icon = wallet.icon || "💰";
+  const icon = walletIconName(wallet.icon);
 
   const press = useRef(new Animated.Value(1)).current;
 
@@ -374,8 +415,6 @@ function WalletCard({
           {
             backgroundColor: palette.card,
             borderColor: palette.stroke,
-            borderTopColor: color,
-            borderLeftColor: color,
           },
           pressed && {
             backgroundColor: isDark ? "#020617" : "#FBFDFF",
@@ -383,9 +422,14 @@ function WalletCard({
         ]}
       >
         <View style={styles.walletRow}>
-          <View style={[styles.walletCircle, { backgroundColor: color }]}>
-            <Text style={styles.walletCircleText}>{icon}</Text>
-          </View>
+          <LinearGradient
+            colors={[color, palette.primary]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.walletCircle}
+          >
+            <Ionicons name={icon} size={22} color="#FFFFFF" />
+          </LinearGradient>
 
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text
@@ -403,7 +447,7 @@ function WalletCard({
           </View>
 
           <View style={styles.rightCol}>
-            <Text style={[styles.balanceValue, { color }]} numberOfLines={1}>
+            <Text style={[styles.balanceValue, { color: palette.text }]} numberOfLines={1}>
               {VND(wallet.balance)}
             </Text>
 
@@ -437,16 +481,16 @@ function WalletCard({
 }
 
 export default function ManageWalletScreen({ navigation }: any) {
-  const { mode } = useTheme();
+  const { mode, colors } = useTheme();
   const isDark = mode === "dark";
 
   const ui: UI = useMemo(() => {
-    const bg = isDark ? "#020617" : "#F8FAFC";
-    const card = isDark ? "rgba(15,23,42,0.98)" : "#FFFFFF";
-    const text = isDark ? "rgba(248,250,252,0.96)" : "#0F172A";
-    const muted = isDark ? "rgba(148,163,184,0.96)" : "#64748B";
-    const searchBg = isDark ? "rgba(15,23,42,0.96)" : "#FFFFFF";
-    const stroke = isDark ? "rgba(51,65,85,1)" : "rgba(15,23,42,0.06)";
+    const bg = colors.bg;
+    const card = colors.card;
+    const text = colors.text;
+    const muted = colors.muted;
+    const searchBg = colors.card;
+    const stroke = colors.stroke;
     const chipBg = isDark ? "rgba(15,23,42,0.90)" : "rgba(15,23,42,0.04)";
     const sheetBg = isDark ? "rgba(15,23,42,0.98)" : "#FFFFFF";
     const overlay = "rgba(2,6,23,0.45)";
@@ -462,8 +506,10 @@ export default function ManageWalletScreen({ navigation }: any) {
       sheetBg,
       overlay,
       danger,
+      primary: colors.primary,
+      accent: colors.accent,
     };
-  }, [isDark]);
+  }, [colors, isDark]);
 
   const [loading, setLoading] = useState(true);
 
@@ -816,9 +862,8 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: "Faustina_700Bold",
-    fontSize: 20,
+    fontSize: 26,
     color: "#0F172A",
-    letterSpacing: -0.2,
   },
   subTitle: {
     marginTop: 6,
@@ -829,7 +874,7 @@ const styles = StyleSheet.create({
   },
 
   addBtnOld: {
-    backgroundColor: "#34D399",
+    backgroundColor: "#10B981",
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 18,
@@ -846,17 +891,17 @@ const styles = StyleSheet.create({
   },
 
   totalCard: {
-    borderRadius: 18,
-    padding: 16,
-    marginTop: 12,
+    borderRadius: 26,
+    padding: 18,
+    marginTop: 16,
     borderWidth: 1,
-    borderColor: "rgba(15,23,42,0.08)",
+    borderColor: "rgba(255,255,255,0.16)",
   },
   totalTop: { flexDirection: "row", alignItems: "center", gap: 10 },
   totalIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 10,
+    width: 34,
+    height: 34,
+    borderRadius: 14,
     backgroundColor: "rgba(230,255,251,0.18)",
     alignItems: "center",
     justifyContent: "center",
@@ -867,11 +912,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   totalValue: {
-    marginTop: 10,
+    marginTop: 14,
     fontFamily: "Faustina_700Bold",
     color: "#FFFFFF",
-    fontSize: 28,
-    letterSpacing: -0.3,
+    fontSize: 32,
   },
   totalSub: {
     marginTop: 6,
@@ -886,9 +930,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    borderRadius: 18,
     paddingHorizontal: 12,
-    height: 42,
+    minHeight: 48,
     borderWidth: 1,
     borderColor: "rgba(15,23,42,0.06)",
   },
@@ -901,30 +945,32 @@ const styles = StyleSheet.create({
 
   walletCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: "rgba(15,23,42,0.06)",
-    borderTopWidth: 3,
-    borderLeftWidth: 3,
+    overflow: "hidden",
   },
   walletRow: {
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
   walletCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 50,
+    height: 50,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
   },
-  walletCircleText: { fontSize: 18 },
   walletName: {
     fontFamily: "Faustina_700Bold",
-    fontSize: 14.5,
+    fontSize: 16,
     color: "#0F172A",
   },
   walletDesc: {
@@ -936,11 +982,11 @@ const styles = StyleSheet.create({
   rightCol: {
     alignItems: "flex-end",
     justifyContent: "center",
-    minWidth: 120,
+    minWidth: 112,
   },
   balanceValue: {
     fontFamily: "Faustina_700Bold",
-    fontSize: 14.5,
+    fontSize: 15.5,
   },
   menuBtn: {
     width: 30,
@@ -1072,7 +1118,7 @@ const styles = StyleSheet.create({
     height: 42,
     paddingHorizontal: 18,
     borderRadius: 22,
-    backgroundColor: "#34D399",
+    backgroundColor: "#10B981",
     alignItems: "center",
     justifyContent: "center",
   },

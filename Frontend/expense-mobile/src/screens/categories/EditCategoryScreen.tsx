@@ -26,7 +26,7 @@ import {
 } from "../../services/categories";
 import { useTheme } from "../../theme/ThemeContext";
 
-const GREEN = "#4EECA5";
+const GREEN = "#10B981";
 
 // ✅ 2 hàng * 6 cột
 const COLORS_2_ROWS = CATEGORY_COLORS.slice(0, 12);

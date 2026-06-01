@@ -3,11 +3,31 @@ const walletService = require("../services/walletService");
 exports.getMyWallets = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const wallets = await walletService.getWalletsByUser(userId);
+    const includeArchived = String(req.query.includeArchived || "false") === "true";
+    const wallets = await walletService.getWalletsByUser(userId, { includeArchived });
 
     res.json({
       status: "success",
       data: wallets,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getWalletStats = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { fromDate, toDate } = req.query;
+
+    const stats = await walletService.getWalletStatsByUser(userId, {
+      fromDate: fromDate || null,
+      toDate: toDate || null,
+    });
+
+    res.json({
+      status: "success",
+      data: stats,
     });
   } catch (err) {
     next(err);

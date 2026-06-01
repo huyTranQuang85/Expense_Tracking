@@ -7,8 +7,10 @@ import {
   Text,
   TextInput,
   View,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
@@ -27,11 +29,6 @@ type FieldErrors = {
   wallet?: string;
   date?: string;
 };
-
-const BG = "#F3F5F7";
-const CARD = "#FFFFFF";
-const INPUT_BG = "#DADADA";
-const GREEN = "#4EECA5";
 
 const INCOME_ACTIVE = "rgba(78,236,165,0.45)";
 const EXPENSE_ACTIVE = "rgba(252,165,165,0.55)";
@@ -68,29 +65,22 @@ function walletName(w: any) {
 export default function AddTransactionScreen() {
   const nav = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const { mode } = useTheme();
+  const { mode, colors } = useTheme();
   const isDark = mode === "dark";
 
   const ui = useMemo(() => {
-    // Light mode giữ nguyên như cũ
-    if (!isDark)
-      return {
-        bg: BG,
-        card: CARD,
-        input: INPUT_BG,
-        text: "#111111",
-        muted: "rgba(0,0,0,0.55)",
-      };
-
-    // Dark mode – chỉ đổi màu, không đổi layout
     return {
-      bg: "#020617", // slate-950
-      card: "rgba(15,23,42,0.96)", // slate-900
-      input: "rgba(30,41,59,0.9)", // slate-800-ish
-      text: "rgba(248,250,252,0.96)", // slate-50
-      muted: "rgba(148,163,184,0.95)", // slate-400
+      bg: colors.bg,
+      card: colors.card,
+      input: isDark ? "rgba(148,163,184,0.10)" : "#F1F5F9",
+      text: colors.text,
+      muted: colors.muted,
+      stroke: colors.stroke,
+      soft: colors.soft,
+      primary: colors.primary,
+      danger: colors.danger,
     };
-  }, [isDark]);
+  }, [colors, isDark]);
 
   const shadow = isDark ? {} : styles.shadow;
 
@@ -114,11 +104,6 @@ export default function AddTransactionScreen() {
   const [picker, setPicker] = useState<
     null | "category" | "subCategory" | "wallet"
   >(null);
-
-  const typeColorBg = useMemo(() => {
-    if (type === "income") return INCOME_ACTIVE;
-    return EXPENSE_ACTIVE;
-  }, [type]);
 
   const load = useCallback(async () => {
     try {
@@ -303,9 +288,9 @@ export default function AddTransactionScreen() {
         styles.segBtn,
         {
           backgroundColor: active ? activeBg : ui.input,
+          borderColor: active ? "transparent" : ui.stroke,
           opacity: pressed ? 0.9 : 1,
         },
-        shadow,
       ]}
     >
       <Text style={styles.segEmoji}>{emoji}</Text>
@@ -341,13 +326,12 @@ export default function AddTransactionScreen() {
         onPress={onPress}
         disabled={disabled}
         style={({ pressed }) => [
-          styles.select,
-          {
-            backgroundColor: ui.input,
-            borderWidth: error ? 1 : 0,
-            borderColor: error ? "#EF4444" : "transparent",
-            opacity: disabled ? 0.55 : pressed ? 0.9 : 1,
-          },
+        styles.select,
+        {
+          backgroundColor: ui.input,
+          borderColor: error ? ui.danger : ui.stroke,
+          opacity: disabled ? 0.55 : pressed ? 0.9 : 1,
+        },
         ]}
       >
         <Text
@@ -371,28 +355,78 @@ export default function AddTransactionScreen() {
     >
       <ScrollView
         contentContainerStyle={{
-          padding: 16,
+          paddingHorizontal: 16,
+          paddingTop: 12,
           paddingBottom: insets.bottom + 24,
         }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Back */}
-        <Pressable
-          onPress={() => nav.goBack()}
-          hitSlop={10}
-          style={styles.backBtn}
-        >
-          <Ionicons name="chevron-back" size={26} color={ui.text} />
-        </Pressable>
+        <View style={styles.page}>
+          <View style={styles.topBar}>
+            <Pressable
+              onPress={() => nav.goBack()}
+              hitSlop={10}
+              style={({ pressed }) => [
+                styles.backBtn,
+                {
+                  backgroundColor: ui.card,
+                  borderColor: ui.stroke,
+                  opacity: pressed ? 0.86 : 1,
+                },
+                shadow,
+              ]}
+            >
+              <Ionicons name="chevron-back" size={22} color={ui.text} />
+            </Pressable>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.h1, { color: ui.text }]}>Thêm giao dịch</Text>
+              <Text style={[styles.h2, { color: ui.muted }]}>
+                Ghi nhận khoản thu hoặc chi mới
+              </Text>
+            </View>
+          </View>
 
-        <Text style={[styles.h1, { color: ui.text }]}>Thêm giao dịch</Text>
-        <Text style={[styles.h2, { color: ui.muted }]}>
-          Thêm giao dịch thu nhập hoặc chi tiêu mới
-        </Text>
+          <LinearGradient
+            colors={
+              type === "income"
+                ? isDark
+                  ? ["#065F46", "#0F766E"]
+                  : ["#10B981", "#059669"]
+                : isDark
+                  ? ["#7F1D1D", "#991B1B"]
+                  : ["#EF4444", "#F97316"]
+            }
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.heroCard, shadow]}
+          >
+            <View style={styles.heroIcon}>
+              <Ionicons
+                name={type === "income" ? "arrow-down-circle" : "arrow-up-circle"}
+                size={24}
+                color="#FFFFFF"
+              />
+            </View>
+            <Text style={styles.heroLabel}>
+              {type === "income" ? "Khoản thu mới" : "Khoản chi mới"}
+            </Text>
+            <Text style={styles.heroAmount}>
+              {amountText ? Number(amountText).toLocaleString("vi-VN") : "0"}đ
+            </Text>
+            <Text style={styles.heroMeta} numberOfLines={1}>
+              {categoryLabel || "Chưa chọn danh mục"} • {walletLabel || "Chưa chọn ví"}
+            </Text>
+          </LinearGradient>
 
         {/* Card */}
-        <View style={[styles.card, { backgroundColor: ui.card }, shadow]}>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: ui.card, borderColor: ui.stroke },
+            shadow,
+          ]}
+        >
           <Text style={[styles.label, { color: ui.text }]}>Loại giao dịch</Text>
           <View style={styles.segRow}>
             <SegBtn
@@ -444,8 +478,7 @@ export default function AddTransactionScreen() {
                   styles.inputRow,
                   {
                     backgroundColor: ui.input,
-                    borderWidth: fieldErrors.amount ? 1 : 0,
-                    borderColor: fieldErrors.amount ? "#EF4444" : "transparent",
+                    borderColor: fieldErrors.amount ? ui.danger : ui.stroke,
                   },
                 ]}
               >
@@ -488,8 +521,7 @@ export default function AddTransactionScreen() {
               styles.inputRow,
               {
                 backgroundColor: ui.input,
-                borderWidth: fieldErrors.date ? 1 : 0,
-                borderColor: fieldErrors.date ? "#EF4444" : "transparent",
+                borderColor: fieldErrors.date ? ui.danger : ui.stroke,
               },
             ]}
           >
@@ -545,17 +577,15 @@ export default function AddTransactionScreen() {
           <Pressable
             onPress={() => nav.goBack()}
             style={({ pressed }) => [
-              styles.bottomBtn,
-              { backgroundColor: GREEN, opacity: pressed ? 0.9 : 1 },
-              shadow,
+              styles.bottomBtnSecondary,
+              {
+                backgroundColor: ui.card,
+                borderColor: ui.stroke,
+                opacity: pressed ? 0.9 : 1,
+              },
             ]}
           >
-            <Text
-              style={[
-                styles.bottomBtnText,
-                { color: isDark ? "#052E1B" : "#0E1B13" },
-              ]}
-            >
+            <Text style={[styles.bottomBtnText, { color: ui.text }]}>
               Hủy
             </Text>
           </Pressable>
@@ -566,7 +596,7 @@ export default function AddTransactionScreen() {
             style={({ pressed }) => [
               styles.bottomBtn,
               {
-                backgroundColor: GREEN,
+                backgroundColor: ui.primary,
                 opacity: submitting || loading ? 0.65 : pressed ? 0.9 : 1,
               },
               shadow,
@@ -576,15 +606,13 @@ export default function AddTransactionScreen() {
               <ActivityIndicator />
             ) : (
               <Text
-                style={[
-                  styles.bottomBtnText,
-                  { color: isDark ? "#052E1B" : "#0E1B13" },
-                ]}
+                style={[styles.bottomBtnText, { color: "#052E1B" }]}
               >
                 Thêm giao dịch
               </Text>
             )}
           </Pressable>
+        </View>
         </View>
       </ScrollView>
 
@@ -635,76 +663,144 @@ export default function AddTransactionScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
 
-  backBtn: { width: 34, height: 34, justifyContent: "center" },
+  page: {
+    width: "100%",
+    maxWidth: 560,
+    alignSelf: "center",
+  },
 
-  h1: { marginTop: 8, fontFamily: "Faustina_700Bold", fontSize: 20 },
-  h2: { marginTop: 4, fontFamily: "Faustina_500Medium" },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 14,
+  },
+
+  backBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+  },
+
+  h1: { fontFamily: "Faustina_700Bold", fontSize: 24, lineHeight: 29 },
+  h2: { marginTop: 3, fontFamily: "Faustina_500Medium", fontSize: 13.5 },
+
+  heroCard: {
+    borderRadius: 24,
+    padding: 18,
+    minHeight: 154,
+    overflow: "hidden",
+  },
+  heroIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.20)",
+  },
+  heroLabel: {
+    marginTop: 14,
+    color: "rgba(255,255,255,0.84)",
+    fontFamily: "Faustina_600SemiBold",
+    fontSize: 13,
+  },
+  heroAmount: {
+    marginTop: 2,
+    color: "#FFFFFF",
+    fontFamily: "Faustina_700Bold",
+    fontSize: 34,
+    lineHeight: 40,
+  },
+  heroMeta: {
+    marginTop: 8,
+    color: "rgba(255,255,255,0.82)",
+    fontFamily: "Faustina_500Medium",
+    fontSize: 13,
+  },
 
   card: {
     marginTop: 14,
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: 24,
+    padding: 16,
+    borderWidth: 1,
   },
 
-  label: { fontFamily: "Faustina_700Bold", fontSize: 13, marginBottom: 8 },
+  label: { fontFamily: "Faustina_700Bold", fontSize: 13.5, marginBottom: 8 },
 
   segRow: { flexDirection: "row", gap: 12 },
   segBtn: {
     flex: 1,
-    height: 48,
-    borderRadius: 14,
+    minHeight: 52,
+    borderRadius: 18,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
+    borderWidth: 1,
   },
-  segEmoji: { fontSize: 16 },
+  segEmoji: { fontSize: 17 },
   segText: {
     fontFamily: "Faustina_700Bold",
-    fontSize: 13,
+    fontSize: 13.5,
   },
 
   twoCols: { flexDirection: "row", gap: 12 },
 
   select: {
-    height: 42,
-    borderRadius: 12,
+    minHeight: 46,
+    borderRadius: 16,
     paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    borderWidth: 1,
   },
   selectText: { flex: 1, fontFamily: "Faustina_500Medium", fontSize: 13 },
 
   inputRow: {
-    height: 42,
-    borderRadius: 12,
+    minHeight: 46,
+    borderRadius: 16,
     paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    borderWidth: 1,
   },
   currency: { fontFamily: "Faustina_700Bold" },
-  inputText: { flex: 1, fontFamily: "Faustina_700Bold", fontSize: 13 },
+  inputText: { flex: 1, fontFamily: "Faustina_700Bold", fontSize: 14 },
 
-  textArea: { borderRadius: 12, padding: 12, minHeight: 120 },
+  textArea: { borderRadius: 16, padding: 12, minHeight: 112 },
   textAreaInput: {
     minHeight: 90,
     fontFamily: "Faustina_500Medium",
     fontSize: 13,
   },
 
-  bottomRow: { flexDirection: "row", gap: 16, marginTop: 18 },
+  bottomRow: { flexDirection: "row", gap: 12, marginTop: 16 },
   bottomBtn: {
     flex: 1,
-    height: 44,
-    borderRadius: 22,
+    minHeight: 50,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
+  bottomBtnSecondary: {
+    flex: 0.7,
+    minHeight: 50,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
   bottomBtnText: {
     fontFamily: "Faustina_700Bold",
-    fontSize: 13,
+    fontSize: 13.5,
   },
 
   errorText: {
@@ -716,9 +812,9 @@ const styles = StyleSheet.create({
 
   shadow: {
     shadowColor: "#000",
-    shadowOpacity: 0.14,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: Platform.OS === "android" ? 4 : 0,
   },
 });

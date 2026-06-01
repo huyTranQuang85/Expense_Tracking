@@ -1,12 +1,12 @@
 import React from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, View } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SecureStore from "expo-secure-store";
-import { ThemeProvider } from "./src/theme/ThemeContext";
+import { ThemeProvider, useTheme } from "./src/theme/ThemeContext";
 import AuthNavigator from "./src/app/AuthNavigator";
 import HomeScreen from "./src/screens/HomeScreen";
 import CategoriesNavigator from "./src/screens/categories/CategoriesNavigator";
@@ -52,24 +52,40 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator();
 
 function MainTabs() {
+  const { colors, mode } = useTheme();
+  const isDark = mode === "dark";
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.muted,
+        tabBarLabelStyle: styles.tabLabel,
+        tabBarItemStyle: styles.tabItem,
+        tabBarStyle: [
+          styles.tabBar,
+          {
+            backgroundColor: colors.card,
+            borderTopColor: colors.stroke,
+            shadowOpacity: isDark ? 0 : 0.1,
+            elevation: isDark ? 0 : 10,
+          },
+        ],
         tabBarIcon: ({ color, size }) => {
           const name =
             route.name === "Home"
-              ? "home"
+              ? "grid"
               : route.name === "TransactionList"
-              ? "swap-horizontal"
+              ? "receipt"
               : route.name === "Categories"
               ? "pricetag"
               : "wallet";
-          return <Ionicons name={name as any} size={size} color={color} />;
+          return <Ionicons name={name as any} size={size - 1} color={color} />;
         },
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Home" component={HomeScreen} options={{ title: "Tổng quan" }} />
       <Tab.Screen name="TransactionList" component={TransactionListScreen} options={{ title: "Giao dịch" }} />
       <Tab.Screen name="Categories" component={CategoriesNavigator} options={{ title: "Danh mục" }} />
       <Tab.Screen name="WalletList" component={WalletListScreen} options={{ title: "Ví" }} />
@@ -84,6 +100,27 @@ function LoadingScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  tabBar: {
+    height: Platform.OS === "ios" ? 86 : 70,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "ios" ? 22 : 10,
+    borderTopWidth: 1,
+    shadowColor: "#0F172A",
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: -8 },
+  },
+  tabItem: {
+    borderRadius: 18,
+    marginHorizontal: 4,
+  },
+  tabLabel: {
+    fontSize: 11.5,
+    fontFamily: "Faustina_600SemiBold",
+    marginTop: 2,
+  },
+});
 
 export default function App() {
   const [authReady, setAuthReady] = React.useState(false);

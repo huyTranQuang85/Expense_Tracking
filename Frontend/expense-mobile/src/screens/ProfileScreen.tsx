@@ -27,7 +27,7 @@ import { fetchMe, Me, updateMyProfile } from "../services/profile";
 import { uploadMyAvatar } from "../services/settings";
 import { useTheme } from "../theme/ThemeContext";
 
-const GREEN = "#34D399";
+const GREEN = "#10B981";
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "";
 
 type Palette = {
@@ -57,30 +57,20 @@ function isLocalFileUri(uri: string) {
 }
 
 export default function UpdateProfileScreen({ navigation }: any) {
-  const { mode } = useTheme();
+  const { mode, colors } = useTheme();
   const isDark = mode === "dark";
 
   // 🎨 Palette giống Category / Wallet
   const palette: Palette = useMemo(() => {
-    if (isDark) {
-      return {
-        bg: "#020617",
-        card: "rgba(15,23,42,0.98)",
-        text: "rgba(248,250,252,0.96)",
-        muted: "rgba(148,163,184,0.95)",
-        soft: "rgba(15,23,42,0.9)",
-        stroke: "rgba(51,65,85,1)",
-      };
-    }
     return {
-      bg: "#F5F6FA",
-      card: "#FFFFFF",
-      text: "#0F172A",
-      muted: "#64748B",
-      soft: "rgba(148,163,184,0.16)",
-      stroke: "rgba(15,23,42,0.06)",
+      bg: colors.bg,
+      card: colors.card,
+      text: colors.text,
+      muted: colors.muted,
+      soft: colors.soft,
+      stroke: colors.stroke,
     };
-  }, [isDark]);
+  }, [colors]);
 
   const shadow = isDark ? {} : styles.shadow;
 
@@ -226,7 +216,7 @@ export default function UpdateProfileScreen({ navigation }: any) {
 
   return (
     <LinearGradient
-      colors={isDark ? ["#050816", "#020617"] : ["#F8FBFF", "#ECFDF5"]}
+      colors={isDark ? ["#080D14", "#0F172A"] : ["#F6F7FB", "#ECFDF5"]}
       style={styles.safe}
     >
       <SafeAreaView style={[styles.safe, { backgroundColor: "transparent" }]}> 
@@ -254,12 +244,19 @@ export default function UpdateProfileScreen({ navigation }: any) {
             </Pressable>
           </View>
 
-            <View style={[styles.hero, { backgroundColor: palette.card, borderColor: palette.stroke }, shadow]}>
-              <View style={styles.accentBar} />
-              <Text style={[styles.heroKicker, { color: palette.muted }]}>Hồ sơ cá nhân</Text>
-              <Text style={[styles.h1, { color: palette.text }]}>Chỉnh sửa hồ sơ cá nhân</Text>
-              <Text style={[styles.heroSub, { color: palette.muted }]}>Cập nhật tên, ảnh đại diện, số điện thoại và tiểu sử.</Text>
-            </View>
+            <LinearGradient
+              colors={isDark ? ["#0F172A", "#064E3B"] : ["#0F172A", "#10B981"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[styles.hero, shadow]}
+            >
+              <View style={styles.heroIcon}>
+                <Ionicons name="person-circle-outline" size={26} color="#FFFFFF" />
+              </View>
+              <Text style={styles.heroKicker}>Hồ sơ cá nhân</Text>
+              <Text style={styles.h1}>Chỉnh sửa hồ sơ</Text>
+              <Text style={styles.heroSub}>Cập nhật tên, ảnh đại diện, số điện thoại và tiểu sử.</Text>
+            </LinearGradient>
 
             <Animated.View
               style={{ opacity: fade, transform: [{ translateY: rise }] }}
@@ -281,11 +278,9 @@ export default function UpdateProfileScreen({ navigation }: any) {
                 style={[styles.avatarBoard, { backgroundColor: palette.soft }]}
               >
                 <View style={styles.avatarCenter}>
-                  <View
-                    style={[
-                      styles.avatarCircle,
-                      { backgroundColor: isDark ? "#020617" : "#FFFFFF" },
-                    ]}
+                  <LinearGradient
+                    colors={isDark ? ["#111827", "#064E3B"] : ["#FFFFFF", "#D1FAE5"]}
+                    style={styles.avatarCircle}
                   >
                     {hasAvatar ? (
                       <Image
@@ -297,7 +292,7 @@ export default function UpdateProfileScreen({ navigation }: any) {
                         <Text style={styles.logoText}>BP</Text>
                       </View>
                     )}
-                  </View>
+                  </LinearGradient>
 
                   <Pressable
                     onPress={onPickAvatar}
@@ -505,22 +500,34 @@ const styles = StyleSheet.create({
   container: { paddingBottom: 10 },
 
   hero: {
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
+    borderRadius: 26,
+    padding: 18,
     marginTop: 10,
+    overflow: "hidden",
+  },
+  heroIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
   },
   heroKicker: {
+    marginTop: 14,
     fontFamily: "Faustina_600SemiBold",
     fontSize: 12,
-    letterSpacing: 0.4,
+    color: "rgba(255,255,255,0.82)",
     textTransform: "uppercase",
   },
   heroSub: {
     marginTop: 6,
     fontFamily: "Faustina_400Regular",
-    fontSize: 12.5,
-    lineHeight: 17,
+    fontSize: 13,
+    lineHeight: 18,
+    color: "rgba(255,255,255,0.82)",
   },
 
   center: { alignItems: "center", justifyContent: "center" },
@@ -537,14 +544,15 @@ const styles = StyleSheet.create({
   },
 
   h1: {
-    marginTop: 10,
+    marginTop: 4,
     fontFamily: "Faustina_700Bold",
-    fontSize: 18,
+    fontSize: 25,
+    color: "#FFFFFF",
   },
 
   card: {
-    borderRadius: 18,
-    padding: 14,
+    borderRadius: 24,
+    padding: 16,
     borderWidth: 1,
     marginTop: 12,
   },
@@ -562,7 +570,7 @@ const styles = StyleSheet.create({
   },
 
   avatarBoard: {
-    borderRadius: 14,
+    borderRadius: 20,
     paddingVertical: 16,
     paddingHorizontal: 14,
     alignItems: "center",
@@ -574,9 +582,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   avatarCircle: {
-    width: 92,
-    height: 92,
-    borderRadius: 46,
+    width: 100,
+    height: 100,
+    borderRadius: 34,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
@@ -602,7 +610,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#3C79FF",
+    backgroundColor: GREEN,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -615,8 +623,8 @@ const styles = StyleSheet.create({
 
   label: { fontFamily: "Faustina_700Bold", fontSize: 12.5, marginBottom: 6 },
   field: {
-    height: 42,
-    borderRadius: 12,
+    minHeight: 48,
+    borderRadius: 16,
     paddingHorizontal: 12,
     justifyContent: "center",
     borderWidth: 1,
@@ -625,7 +633,7 @@ const styles = StyleSheet.create({
 
   bioField: {
     minHeight: 96,
-    borderRadius: 12,
+    borderRadius: 16,
     paddingHorizontal: 12,
     paddingTop: 10,
     paddingBottom: 10,
@@ -641,8 +649,8 @@ const styles = StyleSheet.create({
   actions: { flexDirection: "row", gap: 14, marginTop: 16 },
   btn: {
     flex: 1,
-    height: 46,
-    borderRadius: 23,
+    minHeight: 50,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,

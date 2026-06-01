@@ -28,19 +28,19 @@ import { useTheme } from "../../theme/ThemeContext";
 
 type Props = { navigation: any };
 
-const ICONS = [
-  "💰",
-  "💳",
-  "🏦",
-  "🪙",
-  "🐷",
-  "👜",
-  "🎁",
-  "🏠",
-  "🚗",
-  "🍔",
-  "🧾",
-  "📦",
+const ICONS: Array<{ key: string; icon: keyof typeof Ionicons.glyphMap }> = [
+  { key: "cash", icon: "cash-outline" },
+  { key: "card", icon: "card-outline" },
+  { key: "bank", icon: "business-outline" },
+  { key: "coins", icon: "server-outline" },
+  { key: "wallet", icon: "wallet-outline" },
+  { key: "bag", icon: "bag-handle-outline" },
+  { key: "gift", icon: "gift-outline" },
+  { key: "home", icon: "home-outline" },
+  { key: "car", icon: "car-outline" },
+  { key: "food", icon: "fast-food-outline" },
+  { key: "receipt", icon: "receipt-outline" },
+  { key: "box", icon: "cube-outline" },
 ];
 
 type ColorSwatch =
@@ -173,7 +173,7 @@ export default function AddWalletScreen({ navigation }: Props) {
   const [initialBalance, setInitialBalance] = useState("0");
   const [description, setDescription] = useState("");
 
-  const [icon, setIcon] = useState<string>(ICONS[0]);
+  const [icon, setIcon] = useState<string>(ICONS[0].key);
   const [selectedSwatchKey, setSelectedSwatchKey] = useState<string>("teal");
   const [color, setColor] = useState<string>("#0F766E");
 
@@ -249,9 +249,18 @@ export default function AddWalletScreen({ navigation }: Props) {
         },
       ]}
     >
-      <View style={[styles.previewCircle, { backgroundColor: color }]}>
-        <Text style={{ fontSize: 18 }}>{icon}</Text>
-      </View>
+      <LinearGradient
+        colors={[color, "#10B981"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.previewCircle}
+      >
+        <Ionicons
+          name={ICONS.find((x) => x.key === icon)?.icon ?? "wallet-outline"}
+          size={22}
+          color="#FFFFFF"
+        />
+      </LinearGradient>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text
           style={[styles.previewName, { color: ui.text }]}
@@ -274,11 +283,11 @@ export default function AddWalletScreen({ navigation }: Props) {
     </View>
   );
 
-  const renderIcon = ({ item }: { item: string }) => {
-    const active = item === icon;
+  const renderIcon = ({ item }: { item: (typeof ICONS)[number] }) => {
+    const active = item.key === icon;
     return (
       <Pressable
-        onPress={() => setIcon(item)}
+        onPress={() => setIcon(item.key)}
         style={({ pressed }) => [
           styles.iconCell,
           {
@@ -292,7 +301,11 @@ export default function AddWalletScreen({ navigation }: Props) {
           },
         ]}
       >
-        <Text style={{ fontSize: 18 }}>{item}</Text>
+        <Ionicons
+          name={item.icon}
+          size={20}
+          color={active ? "#10B981" : ui.muted}
+        />
       </Pressable>
     );
   };
@@ -471,7 +484,7 @@ export default function AddWalletScreen({ navigation }: Props) {
               >
                 <FlatList
                   data={ICONS}
-                  keyExtractor={(it) => it}
+                  keyExtractor={(it) => it.key}
                   renderItem={renderIcon}
                   numColumns={6}
                   scrollEnabled={false}
@@ -577,20 +590,20 @@ const styles = StyleSheet.create({
   previewCard: {
     marginTop: 14,
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: "rgba(15,23,42,0.06)",
-    borderTopWidth: 3,
-    borderLeftWidth: 3,
+    borderTopWidth: 0,
+    borderLeftWidth: 0,
     padding: 14,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
   previewCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 52,
+    height: 52,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -610,8 +623,8 @@ const styles = StyleSheet.create({
   card: {
     marginTop: 12,
     backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 14,
+    borderRadius: 24,
+    padding: 16,
     borderWidth: 1,
     borderColor: "rgba(15,23,42,0.06)",
   },
@@ -626,7 +639,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     borderRadius: 14,
     backgroundColor: "rgba(148,163,184,0.16)",
-    height: 44,
+    minHeight: 48,
     justifyContent: "center",
     paddingHorizontal: 12,
     borderWidth: 1,
@@ -661,9 +674,9 @@ const styles = StyleSheet.create({
 
   iconCell: {
     flex: 1,
-    height: 38,
+    height: 44,
     marginHorizontal: 4,
-    borderRadius: 12,
+    borderRadius: 16,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
@@ -677,9 +690,9 @@ const styles = StyleSheet.create({
 
   swatchWrap: {
     flex: 1,
-    height: 38,
+    height: 44,
     marginHorizontal: 4,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 4,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
@@ -690,8 +703,8 @@ const styles = StyleSheet.create({
   btnRow: { flexDirection: "row", gap: 12, marginTop: 16 },
   btnGhost: {
     flex: 1,
-    height: 46,
-    borderRadius: 23,
+    minHeight: 50,
+    borderRadius: 18,
     backgroundColor: "rgba(148,163,184,0.18)",
     alignItems: "center",
     justifyContent: "center",
@@ -704,9 +717,9 @@ const styles = StyleSheet.create({
 
   btnPrimary: {
     flex: 1,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: "#34D399",
+    minHeight: 50,
+    borderRadius: 18,
+    backgroundColor: "#10B981",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",

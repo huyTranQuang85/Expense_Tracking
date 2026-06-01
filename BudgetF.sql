@@ -111,6 +111,9 @@ CREATE TABLE IF NOT EXISTS categories (
   type               money_type NOT NULL,
   icon               TEXT,
   color              TEXT CHECK (color IS NULL OR color ~* '^#[0-9A-F]{6}$'),
+  group_key          TEXT,
+  sort_order         INTEGER NOT NULL DEFAULT 0,
+  is_system          BOOLEAN NOT NULL DEFAULT false,
   parent_category_id BIGINT REFERENCES categories(category_id) ON DELETE RESTRICT,
   created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -125,13 +128,47 @@ CREATE TABLE IF NOT EXISTS wallets (
   icon        TEXT,
   color       TEXT CHECK (color IS NULL OR color ~* '^#[0-9A-F]{6}$'),
   type        wallet_type NOT NULL DEFAULT 'standard',
+  currency_code TEXT NOT NULL DEFAULT 'VND',
   balance     NUMERIC(14,2) NOT NULL DEFAULT 0,
   is_archived BOOLEAN NOT NULL DEFAULT false,
+  is_frozen   BOOLEAN NOT NULL DEFAULT false,
+  archived_at TIMESTAMPTZ,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- 3.5 transactions ------------------------------------------------------------
+-- 3.5 wallet_transfers ---------------------------------------------------------
+CREATE TABLE IF NOT EXISTS wallet_transfers (
+  transfer_id     BIGSERIAL PRIMARY KEY,
+  user_id         UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  from_wallet_id  BIGINT NOT NULL REFERENCES wallets(wallet_id) ON DELETE RESTRICT,
+  to_wallet_id    BIGINT NOT NULL REFERENCES wallets(wallet_id) ON DELETE RESTRICT,
+  amount          NUMERIC(14,2) NOT NULL CHECK (amount > 0),
+  description     TEXT,
+  tx_date         DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 3.6 recurring_transactions ---------------------------------------------------
+CREATE TABLE IF NOT EXISTS recurring_transactions (
+  recurring_id     BIGSERIAL PRIMARY KEY,
+  user_id          UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  category_id      BIGINT NOT NULL REFERENCES categories(category_id) ON DELETE RESTRICT,
+  wallet_id        BIGINT NOT NULL REFERENCES wallets(wallet_id) ON DELETE RESTRICT,
+  amount           NUMERIC(14,2) NOT NULL CHECK (amount > 0),
+  description      TEXT,
+  interval_unit    TEXT NOT NULL CHECK (interval_unit IN ('daily','weekly','monthly','yearly')),
+  interval_count   SMALLINT NOT NULL DEFAULT 1 CHECK (interval_count >= 1),
+  start_date       DATE NOT NULL DEFAULT CURRENT_DATE,
+  next_run_date    DATE NOT NULL DEFAULT CURRENT_DATE,
+  end_date         DATE,
+  is_active        BOOLEAN NOT NULL DEFAULT true,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 3.7 transactions ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS transactions (
   transaction_id BIGSERIAL PRIMARY KEY,
   user_id        UUID   NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
@@ -140,6 +177,8 @@ CREATE TABLE IF NOT EXISTS transactions (
   amount         NUMERIC(14,2) NOT NULL CHECK (amount > 0),
   description    TEXT,
   tx_date        DATE NOT NULL DEFAULT CURRENT_DATE,
+  transfer_id    BIGINT REFERENCES wallet_transfers(transfer_id) ON DELETE SET NULL,
+  recurring_id   BIGINT REFERENCES recurring_transactions(recurring_id) ON DELETE SET NULL,
   deleted_at     TIMESTAMPTZ,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()

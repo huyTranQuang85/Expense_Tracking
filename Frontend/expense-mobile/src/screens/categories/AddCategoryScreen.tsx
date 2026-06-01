@@ -25,7 +25,7 @@ import {
 } from "../../services/categories";
 import { useTheme } from "../../theme/ThemeContext";
 
-const GREEN = "#4EECA5";
+const GREEN = "#10B981";
 
 function getErrMsg(e: any) {
   return (

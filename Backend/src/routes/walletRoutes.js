@@ -6,6 +6,7 @@ const router = express.Router();
 
 // Tất cả route ví đều cần đăng nhập
 router.get("/", auth, walletController.getMyWallets);
+router.get("/stats", auth, walletController.getWalletStats);
 router.post("/", auth, walletController.createWallet);
 router.put("/:id", auth, walletController.updateWallet);
 router.delete("/:id", auth, walletController.deleteWallet);

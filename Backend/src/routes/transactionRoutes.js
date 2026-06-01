@@ -10,6 +10,15 @@ router.use(authMiddleware);
 // Lấy danh sách giao dịch (có filter)
 router.get("/", transactionController.listTransactions);
 
+// Recurring transactions
+router.get("/recurring", transactionController.listRecurring);
+router.post("/recurring", transactionController.createRecurring);
+router.put("/recurring/:id", transactionController.updateRecurring);
+router.delete("/recurring/:id", transactionController.deleteRecurring);
+
+// Chuyen tien giua vi
+router.post("/transfer", transactionController.createTransfer);
+
 // Tạo giao dịch mới
 router.post("/", transactionController.createTransaction);
 

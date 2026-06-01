@@ -26,7 +26,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
 
-import { ICON_BY_KEY, CATEGORY_ICONS } from "../constants/categoryPicker";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import {
   Category,
@@ -38,27 +37,11 @@ import { fetchMe, Me } from "../services/profile";
 // ✅ dùng ThemeContext thay vì useColorScheme
 import { useTheme } from "../theme/ThemeContext";
 
-const GREEN = "#34D399";
+const GREEN = "#10B981";
 const INCOME_BG = "rgba(110,231,183,0.55)";
 const EXPENSE_BG = "rgba(252,165,165,0.55)";
 
 const safeText = (x: any) => String(x ?? "");
-const normalizeEmoji = (s: string) => s.replace(/\uFE0F/g, "");
-const isProbablyEmoji = (s: string) =>
-  /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(s);
-
-const resolveIconText = (raw?: string | null) => {
-  if (!raw) return null;
-
-  const mapped = ICON_BY_KEY[raw];
-  if (mapped) return normalizeEmoji(mapped);
-
-  const s = String(raw);
-  if (isProbablyEmoji(s)) return normalizeEmoji(s);
-
-  return null;
-};
-
 const parentIdOf = (c: any) =>
   c?.parentCategoryId ??
   c?.parent_category_id ??
@@ -66,15 +49,10 @@ const parentIdOf = (c: any) =>
   c?.parent_id ??
   null;
 
-const iconKeyOf = (c: any) => c?.icon ?? c?.iconKey ?? c?.icon_key ?? null;
-
 const colorOf = (c: any) =>
   (c?.color ?? c?.colorHex ?? c?.color_hex ?? "").trim();
 
 const isParent = (c: any) => parentIdOf(c) == null;
-
-const iconTextByKey = (key?: string | null) =>
-  key ? CATEGORY_ICONS.find((x) => x.key === key)?.icon ?? null : null;
 
 const getErrMsg = (e: any) =>
   e?.response?.data?.message ||
@@ -87,12 +65,33 @@ const normalizeColor = (c?: string) => {
   return x && x.startsWith("#") ? x : x ? `#${x}` : "";
 };
 
+function categoryIonIcon(
+  type: "income" | "expense" | string,
+  name?: string,
+): keyof typeof Ionicons.glyphMap {
+  const text = safeText(name).toLowerCase();
+  if (type === "income") {
+    if (text.includes("lương")) return "briefcase-outline";
+    if (text.includes("đầu tư")) return "trending-up-outline";
+    if (text.includes("thưởng")) return "sparkles-outline";
+    return "cash-outline";
+  }
+
+  if (text.includes("ăn") || text.includes("uống")) return "restaurant-outline";
+  if (text.includes("mua")) return "bag-outline";
+  if (text.includes("nhà")) return "home-outline";
+  if (text.includes("xe") || text.includes("xăng")) return "car-outline";
+  if (text.includes("học")) return "school-outline";
+  if (text.includes("sức") || text.includes("thuốc")) return "medkit-outline";
+  return "pricetag-outline";
+}
+
 export default function CategoryScreen() {
   const insets = useSafeAreaInsets();
   const nav = useNavigation<any>();
 
   // ⭐ LẤY MODE TỪ THEME CONTEXT
-  const { mode } = useTheme();
+  const { mode, colors } = useTheme();
   const isDark = mode === "dark";
 
   // Enable layout animation on Android
@@ -107,16 +106,16 @@ export default function CategoryScreen() {
 
   // 🎨 Palette theo dark / light, giống style các màn khác
   const ui = useMemo(() => {
-    const bg = isDark ? "#020617" : "#F5F6FA";
-    const card = isDark ? "rgba(15,23,42,0.98)" : "#FFFFFF";
-    const text = isDark ? "rgba(248,250,252,0.96)" : "#0F172A";
-    const muted = isDark ? "rgba(148,163,184,0.95)" : "#64748B";
+    const bg = colors.bg;
+    const card = colors.card;
+    const text = colors.text;
+    const muted = colors.muted;
     const inputBg = isDark ? "rgba(15,23,42,0.9)" : "rgba(148,163,184,0.12)";
     const line = isDark ? "rgba(30,41,59,0.9)" : "rgba(15,23,42,0.08)";
     const subCard = isDark ? "rgba(15,23,42,0.9)" : "rgba(15,23,42,0.03)";
     const stroke = isDark ? "rgba(51,65,85,1)" : "rgba(15,23,42,0.06)";
     return { bg, card, text, muted, inputBg, line, subCard, stroke };
-  }, [isDark]);
+  }, [colors, isDark]);
 
   const shadow = isDark ? {} : styles.shadow;
 
@@ -387,7 +386,7 @@ export default function CategoryScreen() {
                     },
                   ]}
                 >
-                  <Text style={styles.tabEmoji}>💰</Text>
+                  <Ionicons name="cash-outline" size={18} color={ui.text} />
                   <Text style={[styles.tabText, { color: ui.text }]}>
                     Thu nhập{" "}
                     <Text style={[styles.tabCount, { color: ui.muted }]}>
@@ -409,7 +408,7 @@ export default function CategoryScreen() {
                     },
                   ]}
                 >
-                  <Text style={styles.tabEmoji}>💸</Text>
+                  <Ionicons name="card-outline" size={18} color={ui.text} />
                   <Text style={[styles.tabText, { color: ui.text }]}>
                     Chi tiêu{" "}
                     <Text style={[styles.tabCount, { color: ui.muted }]}>
@@ -436,9 +435,7 @@ export default function CategoryScreen() {
                 <View>
                   {grouped.map(({ parent, children }) => {
                     const pColor = normalizeColor(colorOf(parent)) || "#CBD5E1";
-                    const pIcon =
-                      resolveIconText(iconKeyOf(parent)) ??
-                      iconTextByKey(iconKeyOf(parent));
+                    const pIcon = categoryIonIcon(parent.type, parent.name);
 
                     const isOpen = searchOpen
                       ? true
@@ -489,9 +486,7 @@ export default function CategoryScreen() {
                               },
                             ]}
                           >
-                            {pIcon ? (
-                              <Text style={styles.iconEmoji}>{pIcon}</Text>
-                            ) : null}
+                            <Ionicons name={pIcon} size={20} color="#FFFFFF" />
                           </View>
 
                           <View style={{ flex: 1, minWidth: 0 }}>
@@ -571,9 +566,7 @@ export default function CategoryScreen() {
                             {children.map((c) => {
                               const cColor =
                                 normalizeColor(colorOf(c)) || pColor;
-                              const cIcon =
-                                resolveIconText(iconKeyOf(c)) ??
-                                iconTextByKey(iconKeyOf(c));
+                              const cIcon = categoryIonIcon(c.type, c.name);
                               return (
                                 <View
                                   key={String(c.id)}
@@ -593,11 +586,7 @@ export default function CategoryScreen() {
                                       },
                                     ]}
                                   >
-                                    {cIcon ? (
-                                      <Text style={styles.iconEmojiSmall}>
-                                        {cIcon}
-                                      </Text>
-                                    ) : null}
+                                    <Ionicons name={cIcon} size={17} color="#FFFFFF" />
                                   </View>
 
                                   <Text
@@ -753,7 +742,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: "hidden",
   },
-  tabEmoji: { fontSize: 16 },
   tabText: { fontFamily: "Faustina_700Bold", fontSize: 13 },
   tabCount: { fontFamily: "Faustina_600SemiBold" },
 
@@ -788,26 +776,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
   },
-  iconEmoji: {
-    fontSize: 20,
-    lineHeight: 24,
-    includeFontPadding: false,
-    textAlign: "center",
-    ...(Platform.OS === "android"
-      ? { textAlignVertical: "center" as any }
-      : {}),
-  },
-
-  iconEmojiSmall: {
-    fontSize: 18,
-    lineHeight: 22,
-    includeFontPadding: false,
-    textAlign: "center",
-    ...(Platform.OS === "android"
-      ? { textAlignVertical: "center" as any }
-      : {}),
-  },
-
   parentName: { fontFamily: "Faustina_700Bold", fontSize: 14 },
   parentSub: {
     fontFamily: "Faustina_400Regular",

@@ -9,7 +9,7 @@ import {
   useColorScheme,
 } from "react-native";
 
-const GREEN = "#4EECA5";
+const GREEN = "#10B981";
 const RED = "#EF4444";
 
 export default function ConfirmDeleteModal({

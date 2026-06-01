@@ -1,5 +1,8 @@
 const pool = require("../db");
 const budgetService = require("../services/budgetService");
+const walletService = require("../services/walletService");
+const transferService = require("../services/transferService");
+const recurringService = require("../services/recurringService");
 
 // Helper: parse int an toàn
 const toInt = (value, fallback = null) => {
@@ -25,9 +28,24 @@ function formatDateYMD(d) {
  */
 exports.listTransactions = async (req, res) => {
   const userId = req.user.id;
-  const { month, year, type, q } = req.query;
+  const {
+    month,
+    year,
+    type,
+    q,
+    fromDate,
+    toDate,
+    walletId,
+    categoryId,
+  } = req.query;
 
   try {
+    try {
+      await recurringService.materializeDueRecurring(userId);
+    } catch (err) {
+      console.error("materializeDueRecurring error:", err);
+    }
+
     const params = [userId];
     let where = `t.user_id = $1 AND t.deleted_at IS NULL`;
 
@@ -46,6 +64,26 @@ exports.listTransactions = async (req, res) => {
       where += ` AND c.type = $${params.length}`;
     }
 
+    if (fromDate) {
+      params.push(fromDate);
+      where += ` AND t.tx_date >= $${params.length}`;
+    }
+
+    if (toDate) {
+      params.push(toDate);
+      where += ` AND t.tx_date <= $${params.length}`;
+    }
+
+    if (walletId) {
+      params.push(walletId);
+      where += ` AND t.wallet_id = $${params.length}`;
+    }
+
+    if (categoryId) {
+      params.push(categoryId);
+      where += ` AND t.category_id = $${params.length}`;
+    }
+
     if (q && q.trim()) {
       params.push(`%${q.trim()}%`);
       params.push(`%${q.trim()}%`);
@@ -62,12 +100,30 @@ exports.listTransactions = async (req, res) => {
         t.amount,
         t.description,
         to_char(t.tx_date, 'YYYY-MM-DD') AS tx_date,
+        t.transfer_id,
+        t.recurring_id,
         c.category_name,
         c.type AS category_type,
-        w.wallet_name
+        c.icon AS category_icon,
+        c.color AS category_color,
+        c.is_system AS category_is_system,
+        c.group_key AS category_group_key,
+          w.wallet_name,
+          tr.from_wallet_id,
+          tr.to_wallet_id,
+          wf.wallet_name AS from_wallet_name,
+          wt.wallet_name AS to_wallet_name,
+          CASE
+            WHEN t.transfer_id IS NULL THEN NULL
+            WHEN t.wallet_id = tr.from_wallet_id THEN 'out'
+            ELSE 'in'
+          END AS transfer_direction
       FROM transactions t
-      JOIN categories c ON c.category_id = t.category_id
+      LEFT JOIN categories c ON c.category_id = t.category_id
       JOIN wallets   w ON w.wallet_id   = t.wallet_id
+      LEFT JOIN wallet_transfers tr ON tr.transfer_id = t.transfer_id
+      LEFT JOIN wallets wf ON wf.wallet_id = tr.from_wallet_id
+      LEFT JOIN wallets wt ON wt.wallet_id = tr.to_wallet_id
       WHERE ${where}
       ORDER BY t.tx_date DESC, t.transaction_id DESC
     `;
@@ -130,6 +186,21 @@ exports.createTransaction = async (req, res) => {
   const txDateStr = normalizeToDateString(tx_date);
 
   try {
+    const wallet = await walletService.getWalletById(userId, wallet_id);
+    if (!wallet) {
+      return res.status(404).json({
+        status: "error",
+        message: "Khong tim thay vi",
+      });
+    }
+
+    if (wallet.isArchived || wallet.isFrozen) {
+      return res.status(400).json({
+        status: "error",
+        message: "Vi dang bi an hoac dong bang",
+      });
+    }
+
     const insertSql = `
       INSERT INTO transactions (
         user_id, category_id, wallet_id, amount, description, tx_date
@@ -214,6 +285,23 @@ exports.updateTransaction = async (req, res) => {
   const txDateStr = normalizeToDateString(tx_date);
 
   try {
+    if (wallet_id) {
+      const wallet = await walletService.getWalletById(userId, wallet_id);
+      if (!wallet) {
+        return res.status(404).json({
+          status: "error",
+          message: "Khong tim thay vi",
+        });
+      }
+
+      if (wallet.isArchived || wallet.isFrozen) {
+        return res.status(400).json({
+          status: "error",
+          message: "Vi dang bi an hoac dong bang",
+        });
+      }
+    }
+
     const updateSql = `
       UPDATE transactions
       SET
@@ -561,5 +649,98 @@ exports.forceDeleteTransaction = async (req, res) => {
       status: "error",
       message: "Lỗi server khi xoá vĩnh viễn giao dịch",
     });
+  }
+};
+
+exports.createTransfer = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const transfer = await transferService.createTransfer(userId, {
+      fromWalletId: req.body.fromWalletId ?? req.body.from_wallet_id,
+      toWalletId: req.body.toWalletId ?? req.body.to_wallet_id,
+      amount: req.body.amount,
+      description: req.body.description,
+      txDate: req.body.txDate ?? req.body.tx_date,
+    });
+
+    res.status(201).json({
+      status: "success",
+      data: transfer,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.listRecurring = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const rows = await recurringService.listRecurring(userId);
+    res.json({ status: "success", data: rows });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.createRecurring = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const payload = {
+      categoryId: req.body.categoryId ?? req.body.category_id,
+      walletId: req.body.walletId ?? req.body.wallet_id,
+      amount: req.body.amount,
+      description: req.body.description,
+      intervalUnit: req.body.intervalUnit ?? req.body.interval_unit,
+      intervalCount: req.body.intervalCount ?? req.body.interval_count,
+      startDate: req.body.startDate ?? req.body.start_date,
+      endDate: req.body.endDate ?? req.body.end_date,
+    };
+
+    const row = await recurringService.createRecurring(userId, payload);
+    res.status(201).json({ status: "success", data: row });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.updateRecurring = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const recurringId = Number(req.params.id);
+
+    const row = await recurringService.updateRecurring(userId, recurringId, {
+      categoryId: req.body.categoryId ?? req.body.category_id,
+      walletId: req.body.walletId ?? req.body.wallet_id,
+      amount: req.body.amount,
+      description: req.body.description,
+      intervalUnit: req.body.intervalUnit ?? req.body.interval_unit,
+      intervalCount: req.body.intervalCount ?? req.body.interval_count,
+      startDate: req.body.startDate ?? req.body.start_date,
+      nextRunDate: req.body.nextRunDate ?? req.body.next_run_date,
+      endDate: req.body.endDate ?? req.body.end_date,
+      isActive: req.body.isActive ?? req.body.is_active,
+    });
+
+    if (!row) {
+      return res.status(404).json({ status: "error", message: "Khong tim thay" });
+    }
+
+    res.json({ status: "success", data: row });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.deleteRecurring = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const recurringId = Number(req.params.id);
+    const ok = await recurringService.deleteRecurring(userId, recurringId);
+    if (!ok) {
+      return res.status(404).json({ status: "error", message: "Khong tim thay" });
+    }
+    res.json({ status: "success", message: "Da xoa" });
+  } catch (err) {
+    next(err);
   }
 };

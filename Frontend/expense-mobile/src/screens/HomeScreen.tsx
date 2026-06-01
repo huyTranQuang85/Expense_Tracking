@@ -66,7 +66,7 @@ function getInitials(name: string) {
     .join("");
 }
 
-const GREEN = "#34D399";
+const GREEN = "#10B981";
 
 function fmtVnd(n: number) {
   const abs = Math.abs(Number(n || 0));
@@ -106,7 +106,7 @@ export default function HomeScreen() {
   const nav = useNavigation<any>();
 
   // 🔹 Dùng ThemeContext giống AddTransaction
-  const { mode } = useTheme();
+  const { mode, colors } = useTheme();
   const isDark = mode === "dark";
 
   // 🔹 Bảng màu chung light/dark cho Home
@@ -114,24 +114,24 @@ export default function HomeScreen() {
     () =>
       !isDark
         ? {
-            bg: "#F3F5F7",
-            card: "#FFFFFF",
-            soft: "#F3F4F6",
-            track: "rgba(15,23,42,0.06)",
-            stroke: "rgba(15,23,42,0.08)",
-            text: "#111827",
-            muted: "rgba(55,65,81,0.8)",
+            bg: colors.bg,
+            card: colors.card,
+            soft: colors.soft,
+            track: colors.track,
+            stroke: colors.stroke,
+            text: colors.text,
+            muted: colors.muted,
           }
         : {
-            bg: "#020617", // slate-950
-            card: "rgba(15,23,42,0.96)", // slate-900
-            soft: "rgba(15,23,42,0.85)", // list item bg
-            track: "rgba(30,64,175,0.35)", // progress / chip bg
-            stroke: "rgba(148,163,184,0.45)", // border
-            text: "rgba(248,250,252,0.96)", // slate-50
-            muted: "rgba(148,163,184,0.95)", // slate-400
+            bg: colors.bg,
+            card: colors.card,
+            soft: colors.soft,
+            track: colors.track,
+            stroke: colors.stroke,
+            text: colors.text,
+            muted: colors.muted,
           },
-    [isDark],
+    [colors, isDark],
   );
 
   const shadow = isDark ? {} : styles.shadow;
