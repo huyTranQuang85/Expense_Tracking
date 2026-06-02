@@ -1,4 +1,4 @@
-const settingsService = require("../services/settingService");
+const settingsService = require("../services/settingsService");
 
 exports.getMySettings = async (req, res, next) => {
   try {
