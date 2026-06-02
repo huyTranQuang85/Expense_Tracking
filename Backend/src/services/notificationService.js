@@ -13,7 +13,7 @@ function mapNotificationRow(row) {
   };
 }
 
-async function createNotification(payload) {
+async function createNotification(payload, client = pool) {
   const { userId, type = "system", title, message, metadata = null } = payload;
 
   if (!userId) {
@@ -28,7 +28,7 @@ async function createNotification(payload) {
     throw err;
   }
 
-  const { rows } = await pool.query(
+  const { rows } = await client.query(
     `
       INSERT INTO notifications (
         user_id,
@@ -44,6 +44,20 @@ async function createNotification(payload) {
   );
 
   return mapNotificationRow(rows[0]);
+}
+
+async function createNotificationsBulk(payloads = [], client = pool) {
+  if (!Array.isArray(payloads) || payloads.length === 0) {
+    return [];
+  }
+
+  const created = [];
+
+  for (const payload of payloads) {
+    created.push(await createNotification(payload, client));
+  }
+
+  return created;
 }
 
 async function getMyNotifications(userId, options = {}) {
@@ -117,6 +131,7 @@ async function markAllAsRead(userId) {
 
 module.exports = {
   createNotification,
+  createNotificationsBulk,
   getMyNotifications,
   countUnread,
   markAsRead,

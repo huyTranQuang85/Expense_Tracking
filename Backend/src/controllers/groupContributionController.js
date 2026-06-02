@@ -92,6 +92,25 @@ exports.recordContribution = async (req, res, next) => {
   }
 };
 
+exports.reverseContribution = async (req, res, next) => {
+  try {
+    const data = await groupContributionService.reverseContribution(
+      Number(req.params.groupId),
+      Number(req.params.contributionId),
+      req.user.id,
+      req.body,
+    );
+
+    res.json({
+      status: "success",
+      message: "Hoàn tác đóng góp thành công",
+      data,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 exports.getContributions = async (req, res, next) => {
   try {
     const data = await groupContributionService.getContributions(
@@ -99,6 +118,7 @@ exports.getContributions = async (req, res, next) => {
       {
         planId: req.query.planId,
         userId: req.query.userId,
+        status: req.query.status,
       },
     );
 

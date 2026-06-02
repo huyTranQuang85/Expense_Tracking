@@ -57,6 +57,13 @@ function validateReminderPayload(data) {
     throw err;
   }
 
+  const remindDate = new Date(data.remindAt);
+  if (Number.isNaN(remindDate.getTime())) {
+    const err = new Error("Thời gian nhắc nhở không hợp lệ");
+    err.status = 400;
+    throw err;
+  }
+
   if (!["in_app", "email"].includes(data.channel)) {
     const err = new Error("Kênh nhắc nhở không hợp lệ");
     err.status = 400;
@@ -86,6 +93,103 @@ function validateReminderPayload(data) {
     err.status = 400;
     throw err;
   }
+}
+
+function toDateOnly(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate(),
+  ).padStart(2, "0")}`;
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function addMonthsClamped(date, months, monthDay = null) {
+  const next = new Date(date);
+  const originalHours = next.getHours();
+  const originalMinutes = next.getMinutes();
+  const originalSeconds = next.getSeconds();
+  const originalMs = next.getMilliseconds();
+
+  const targetDay = monthDay || next.getDate();
+  next.setDate(1);
+  next.setMonth(next.getMonth() + months);
+
+  const lastDay = new Date(
+    next.getFullYear(),
+    next.getMonth() + 1,
+    0,
+  ).getDate();
+  next.setDate(Math.min(targetDay, lastDay));
+  next.setHours(originalHours, originalMinutes, originalSeconds, originalMs);
+  return next;
+}
+
+function normalizeWeekdays(value) {
+  if (!value) return [];
+  if (Array.isArray(value))
+    return value.map(Number).filter((v) => v >= 0 && v <= 6);
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((item) => Number(item.trim()))
+      .filter((v) => v >= 0 && v <= 6);
+  }
+  return [];
+}
+
+function getNextReminderDate(reminder, now = new Date()) {
+  if (!reminder.is_recurring) return null;
+
+  const interval = Math.max(Number(reminder.interval || 1), 1);
+  const current = new Date(reminder.remind_at);
+  let next;
+
+  if (reminder.frequency === "daily") {
+    next = addDays(current, interval);
+  } else if (reminder.frequency === "weekly") {
+    const weekdays = normalizeWeekdays(reminder.by_weekday);
+
+    if (weekdays.length > 0) {
+      next = new Date(current);
+      for (let i = 1; i <= 7 * interval + 7; i += 1) {
+        const candidate = addDays(current, i);
+        if (weekdays.includes(candidate.getDay()) && candidate > current) {
+          next = candidate;
+          break;
+        }
+      }
+    } else {
+      next = addDays(current, 7 * interval);
+    }
+  } else if (reminder.frequency === "monthly") {
+    next = addMonthsClamped(current, interval, reminder.by_monthday);
+  } else {
+    return null;
+  }
+
+  // Nếu server bị tắt lâu, nhảy tới lần kế tiếp trong tương lai để không gửi bù hàng loạt.
+  let guard = 0;
+  while (next <= now && guard < 366) {
+    const pseudoReminder = { ...reminder, remind_at: next };
+    next = getNextReminderDate(pseudoReminder, new Date(next.getTime() - 1));
+    guard += 1;
+    if (!next) break;
+  }
+
+  if (!next || Number.isNaN(next.getTime())) return null;
+
+  if (reminder.until_date) {
+    const untilDate = new Date(
+      `${toDateOnly(new Date(reminder.until_date))}T23:59:59`,
+    );
+    if (next > untilDate) return null;
+  }
+
+  return next;
 }
 
 async function getGroupReminders(groupId, options = {}) {
@@ -287,54 +391,25 @@ async function deactivateGroupReminder(groupId, reminderId) {
   return mapGroupReminderRow(rows[0]);
 }
 
-async function sendReminderNow(groupId, reminderId, actorId) {
-  const { rows: reminderRows } = await pool.query(
-    `
-      SELECT *
-      FROM group_reminders
-      WHERE group_id = $1
-        AND group_reminder_id = $2
-        AND is_active = true
-    `,
-    [groupId, reminderId],
-  );
-
-  if (reminderRows.length === 0) {
-    const err = new Error("Không tìm thấy nhắc nhở đang hoạt động");
-    err.status = 404;
-    throw err;
-  }
-
-  const reminder = reminderRows[0];
-
-  const { rows: memberRows } = await pool.query(
+async function createReminderNotifications(
+  client,
+  reminder,
+  actorId = null,
+  action = "group_reminder",
+) {
+  const { rows: memberRows } = await client.query(
     `
       SELECT user_id
       FROM group_members
       WHERE group_id = $1
     `,
-    [groupId],
+    [reminder.group_id],
   );
 
-  const notifications = [];
+  let sentCount = 0;
 
   for (const member of memberRows) {
-    const notification = await notificationService.createNotification({
-      userId: member.user_id,
-      type: "reminder",
-      title: reminder.title,
-      message: reminder.message || reminder.title,
-      metadata: {
-        action: "group_reminder",
-        groupId,
-        reminderId,
-        triggeredBy: actorId,
-      },
-    });
-
-    notifications.push(notification);
-
-    await pool.query(
+    const logResult = await client.query(
       `
         INSERT INTO group_reminder_logs (
           group_reminder_id,
@@ -346,15 +421,180 @@ async function sendReminderNow(groupId, reminderId, actorId) {
         VALUES ($1, $2, $3, $4, CURRENT_DATE)
         ON CONFLICT (group_reminder_id, user_id, channel, sent_on)
         DO NOTHING
+        RETURNING group_reminder_log_id
       `,
-      [reminderId, groupId, member.user_id, reminder.channel],
+      [
+        reminder.group_reminder_id,
+        reminder.group_id,
+        member.user_id,
+        reminder.channel,
+      ],
     );
+
+    if (logResult.rows.length === 0) continue;
+
+    await client.query(
+      `
+        INSERT INTO notifications (
+          user_id,
+          type,
+          title,
+          message,
+          metadata
+        )
+        VALUES ($1, 'reminder', $2, $3, $4)
+      `,
+      [
+        member.user_id,
+        reminder.title,
+        reminder.message || reminder.title,
+        {
+          action,
+          groupId: reminder.group_id,
+          reminderId: reminder.group_reminder_id,
+          triggeredBy: actorId,
+          remindAt: reminder.remind_at,
+        },
+      ],
+    );
+
+    sentCount += 1;
   }
 
-  return {
-    reminder: mapGroupReminderRow(reminder),
-    sentCount: notifications.length,
-  };
+  return sentCount;
+}
+
+async function sendReminderNow(groupId, reminderId, actorId) {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const { rows: reminderRows } = await client.query(
+      `
+        SELECT *
+        FROM group_reminders
+        WHERE group_id = $1
+          AND group_reminder_id = $2
+          AND is_active = true
+        FOR UPDATE
+      `,
+      [groupId, reminderId],
+    );
+
+    if (reminderRows.length === 0) {
+      const err = new Error("Không tìm thấy nhắc nhở đang hoạt động");
+      err.status = 404;
+      throw err;
+    }
+
+    const reminder = reminderRows[0];
+    const sentCount = await createReminderNotifications(
+      client,
+      reminder,
+      actorId,
+      "group_reminder_manual",
+    );
+
+    await client.query("COMMIT");
+
+    return {
+      reminder: mapGroupReminderRow(reminder),
+      sentCount,
+    };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function processDueGroupReminders(options = {}) {
+  const limit = Math.min(Number(options.limit) || 50, 200);
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const { rows: reminderRows } = await client.query(
+      `
+        SELECT *
+        FROM group_reminders
+        WHERE is_active = true
+          AND channel = 'in_app'
+          AND remind_at <= now()
+        ORDER BY remind_at ASC, group_reminder_id ASC
+        LIMIT $1
+        FOR UPDATE SKIP LOCKED
+      `,
+      [limit],
+    );
+
+    let reminderCount = 0;
+    let notificationCount = 0;
+    const now = new Date();
+
+    for (const reminder of reminderRows) {
+      const sentCount = await createReminderNotifications(
+        client,
+        reminder,
+        null,
+        "group_reminder_due",
+      );
+
+      notificationCount += sentCount;
+      reminderCount += 1;
+
+      if (reminder.is_recurring) {
+        const nextDate = getNextReminderDate(reminder, now);
+
+        if (nextDate) {
+          await client.query(
+            `
+              UPDATE group_reminders
+              SET remind_at = $1,
+                  updated_at = now()
+              WHERE group_reminder_id = $2
+            `,
+            [nextDate.toISOString(), reminder.group_reminder_id],
+          );
+        } else {
+          await client.query(
+            `
+              UPDATE group_reminders
+              SET is_active = false,
+                  updated_at = now()
+              WHERE group_reminder_id = $1
+            `,
+            [reminder.group_reminder_id],
+          );
+        }
+      } else {
+        await client.query(
+          `
+            UPDATE group_reminders
+            SET is_active = false,
+                updated_at = now()
+            WHERE group_reminder_id = $1
+          `,
+          [reminder.group_reminder_id],
+        );
+      }
+    }
+
+    await client.query("COMMIT");
+
+    return {
+      reminderCount,
+      notificationCount,
+    };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 module.exports = {
@@ -364,4 +604,5 @@ module.exports = {
   updateGroupReminder,
   deactivateGroupReminder,
   sendReminderNow,
+  processDueGroupReminders,
 };

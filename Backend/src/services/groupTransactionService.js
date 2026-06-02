@@ -1,4 +1,5 @@
 const pool = require("../db");
+const groupNotificationService = require("./groupNotificationService");
 
 function mapGroupTransactionRow(row) {
   return {
@@ -121,7 +122,19 @@ async function createTransaction(groupId, userId, payload) {
     [groupId, walletId, categoryId, amount, description, txDate, userId],
   );
 
-  return getTransactionById(groupId, rows[0].group_transaction_id);
+  const transaction = await getTransactionById(
+    groupId,
+    rows[0].group_transaction_id,
+  );
+
+  await groupNotificationService.handleGroupTransactionChanged(
+    groupId,
+    userId,
+    transaction,
+    "group_transaction_created",
+  );
+
+  return transaction;
 }
 
 async function getTransactionById(groupId, transactionId) {
@@ -152,7 +165,12 @@ async function getTransactionById(groupId, transactionId) {
   return mapGroupTransactionRow(rows[0]);
 }
 
-async function updateTransaction(groupId, transactionId, payload) {
+async function updateTransaction(
+  groupId,
+  transactionId,
+  payload,
+  actorUserId = null,
+) {
   const { rows: existedRows } = await pool.query(
     `
       SELECT *
@@ -223,10 +241,22 @@ async function updateTransaction(groupId, transactionId, payload) {
     ],
   );
 
-  return getTransactionById(groupId, rows[0].group_transaction_id);
+  const transaction = await getTransactionById(
+    groupId,
+    rows[0].group_transaction_id,
+  );
+
+  await groupNotificationService.handleGroupTransactionChanged(
+    groupId,
+    actorUserId || transaction.createdBy,
+    transaction,
+    "group_transaction_updated",
+  );
+
+  return transaction;
 }
 
-async function deleteTransaction(groupId, transactionId) {
+async function deleteTransaction(groupId, transactionId, actorUserId = null) {
   const { rows } = await pool.query(
     `
       UPDATE group_transactions
@@ -245,6 +275,15 @@ async function deleteTransaction(groupId, transactionId) {
     err.status = 404;
     throw err;
   }
+
+  const deleted = rows[0];
+
+  await groupNotificationService.handleGroupTransactionChanged(
+    groupId,
+    actorUserId || deleted.created_by,
+    deleted,
+    "group_transaction_deleted",
+  );
 
   return true;
 }

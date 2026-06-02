@@ -1,5 +1,9 @@
 const groupChatService = require("../services/groupChatService");
 
+function getGroupRoom(groupId) {
+  return `group:${groupId}`;
+}
+
 exports.getGroupMessages = async (req, res, next) => {
   try {
     const groupId = Number(req.params.groupId);
@@ -28,6 +32,16 @@ exports.createGroupMessage = async (req, res, next) => {
       userId,
       req.body,
     );
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to(getGroupRoom(groupId)).emit("group:message:new", message);
+      io.to(getGroupRoom(groupId)).emit("group:stop_typing", {
+        groupId,
+        userId,
+        isTyping: false,
+      });
+    }
 
     res.status(201).json({
       status: "success",
