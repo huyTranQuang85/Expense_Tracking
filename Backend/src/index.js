@@ -69,6 +69,7 @@ const categoryRoutes = require("./routes/categoryRoutes");
 const transactionRoutes = require("./routes/transactionRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
 const budgetRoutes = require("./routes/budgetRoutes");
+const chatbotRoutes = require("./routes/chatbotRoutes");
 
 const path = require("path");
 // const uploadRouter = require("./routes/upload");
@@ -79,6 +80,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/budgets", budgetRoutes);
+app.use("/api/chatbot", chatbotRoutes);
 
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 // app.use("/api/upload", uploadRouter);

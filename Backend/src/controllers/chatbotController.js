@@ -58,11 +58,27 @@ exports.ask = async (req, res, next) => {
     const history = historyRes.rows;
 
     // 👉 TOÀN BỘ logic intent + đọc DB đều nằm trong callAssistant
-    const assistantReply = await callAssistant({
+    const assistantResult = await callAssistant({
       userId,
       history,
       latestMessage: message,
     });
+    const assistantReply =
+      typeof assistantResult === "string"
+        ? assistantResult
+        : assistantResult?.reply || assistantResult?.message || "";
+    const assistantMeta =
+      assistantResult && typeof assistantResult === "object"
+        ? assistantResult.meta ?? null
+        : null;
+    const assistantStatus =
+      assistantResult && typeof assistantResult === "object" && assistantResult.status
+        ? Number(assistantResult.status)
+        : 200;
+    const retryAfterSeconds =
+      assistantResult && typeof assistantResult === "object"
+        ? assistantResult.retryAfterSeconds ?? assistantMeta?.retryAfterSeconds ?? null
+        : null;
 
     // lưu reply
     await pool.query(
@@ -77,13 +93,21 @@ exports.ask = async (req, res, next) => {
       [currentSessionId],
     );
 
-    res.json({
+    const payload = {
       status: "success",
       data: {
         sessionId: currentSessionId,
         reply: assistantReply,
+        meta: assistantMeta,
       },
-    });
+    };
+
+    if (retryAfterSeconds) {
+      payload.data.retryAfterSeconds = retryAfterSeconds;
+      res.set("Retry-After", String(retryAfterSeconds));
+    }
+
+    res.status(assistantStatus).json(payload);
   } catch (err) {
     next(err);
   }

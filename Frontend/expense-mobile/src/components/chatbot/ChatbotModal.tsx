@@ -26,6 +26,8 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import {
   askChatbot,
+  ChatActionChoice,
+  ChatbotMeta,
   getChatSession,
   listChatSessions,
 } from "../../services/chatbot";
@@ -40,27 +42,44 @@ type UiMessage = {
   sender: Sender;
   content: string;
   created_at?: string;
-
   _tempId?: string;
   _pending?: boolean;
   _typing?: boolean;
   _display?: string;
+  _actions?: ChatActionChoice[];
+  _note?: string | null;
+  _meta?: ChatbotMeta | null;
 };
 
 type Props = { visible: boolean; onClose: () => void };
 
-const SUGGESTIONS: string[] = [
-  "Tháng này chi tiêu bao nhiêu",
-  "Tháng này thu nhập bao nhiêu",
-  "Tháng này chi bao nhiêu cho danh mục 'Ăn uống'",
-  "Top 3 giao dịch chi tiêu lớn nhất tháng này",
-];
-
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "";
+const QUOTA_DEFAULT_COOLDOWN_SECONDS = 60;
+
+const DEFAULT_ACTIONS: ChatActionChoice[] = [
+  { label: "Tháng này chi tiêu bao nhiêu", value: "Tháng này chi tiêu bao nhiêu" },
+  { label: "Tháng này thu nhập bao nhiêu", value: "Tháng này thu nhập bao nhiêu" },
+  {
+    label: "Tháng này chi bao nhiêu cho danh mục 'Ăn uống'",
+    value: "Tháng này chi bao nhiêu cho danh mục 'Ăn uống'",
+  },
+  {
+    label: "Top 3 giao dịch chi tiêu lớn nhất tháng này",
+    value: "Top 3 giao dịch chi tiêu lớn nhất tháng này",
+  },
+  { label: "Tạo danh mục chi tiêu 'Đi lại'", value: "Tạo danh mục chi tiêu 'Đi lại'" },
+  { label: "Thêm chi tiêu 50 nghìn ăn uống", value: "Thêm chi tiêu 50000 ăn uống" },
+  { label: "Thêm thu nhập 2 triệu vào ví Momo", value: "Thêm thu nhập 2 triệu vào ví Momo" },
+  { label: "Tạo ví mới tên Tiết kiệm", value: "Tạo ví mới tên Tiết kiệm" },
+  { label: "Nhận xét budget tháng này", value: "Nhận xét budget tháng này" },
+  { label: "Nhận xét ví hiện tại", value: "Nhận xét ví hiện tại" },
+  { label: "Đề xuất ví phù hợp để nhận lương", value: "Đề xuất ví phù hợp để nhận lương" },
+];
 
 function nowIso() {
   return new Date().toISOString();
 }
+
 function makeTempId() {
   return `tmp_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
@@ -71,6 +90,25 @@ function normalizeAvatarUri(uri?: string | null) {
   if (u.startsWith("http://") || u.startsWith("https://")) return u;
   if (u.startsWith("/")) return `${API_BASE_URL}${u}`;
   return u;
+}
+
+function normalizeActions(meta?: ChatbotMeta | null): ChatActionChoice[] {
+  const items = [...(meta?.choices ?? []), ...(meta?.followUps ?? [])];
+  const seen = new Set<string>();
+
+  return items
+    .map((item) => ({
+      label: String(item?.label ?? item?.value ?? "").trim(),
+      value: String(item?.value ?? item?.label ?? "").trim(),
+    }))
+    .filter((item) => item.label && item.value)
+    .filter((item) => {
+      const key = `${item.label}::${item.value}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 6);
 }
 
 export default function ChatbotModal({ visible, onClose }: Props) {
@@ -89,10 +127,6 @@ export default function ChatbotModal({ visible, onClose }: Props) {
       panelBorder: isDark ? "rgba(148,163,184,0.45)" : "rgba(15,23,42,0.08)",
       bodyBg: isDark ? "#020617" : "#F5F7FB",
       divider: isDark ? "rgba(30,41,59,1)" : "rgba(226,232,240,0.9)",
-      chipBg: isDark ? "rgba(15,23,42,0.95)" : "#FFFFFF",
-      chipBorder: isDark ? "rgba(148,163,184,0.45)" : "rgba(15,23,42,0.08)",
-      chipActiveBg: "rgba(52,211,153,0.16)",
-      chipActiveBorder: "rgba(52,211,153,0.45)",
       text: isDark ? "#E5E7EB" : "#111827",
       textSub: isDark ? "#9CA3AF" : "#64748B",
       textMuted: isDark ? "#6B7280" : "#98A2B3",
@@ -102,8 +136,6 @@ export default function ChatbotModal({ visible, onClose }: Props) {
       headerGradient,
       headerLogoBg: "rgba(34,197,94,1)",
       headerSubText: "rgba(226,232,240,0.95)",
-      suggestBg: isDark ? "rgba(15,23,42,0.98)" : "rgba(249,250,251,1)",
-      suggestBorder: isDark ? "rgba(31,41,55,1)" : "rgba(226,232,240,1)",
       suggestPillBg: isDark ? "rgba(15,118,110,0.75)" : "#0F766E",
       inputBg: isDark ? "rgba(15,23,42,0.95)" : "#F2F4F7",
       inputBorder: isDark ? "rgba(148,163,184,0.5)" : "rgba(15,23,42,0.12)",
@@ -117,11 +149,13 @@ export default function ChatbotModal({ visible, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [text, setText] = useState("");
-  const [showSuggestions, setShowSuggestions] = useState(true);
+  const [quotaCooldownUntil, setQuotaCooldownUntil] = useState<number | null>(null);
+  const [quotaCooldownLeft, setQuotaCooldownLeft] = useState(0);
 
   const [me, setMe] = useState<Me | null>(null);
 
   const typeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const quotaTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasLoadedRef = useRef(false);
 
   const userAvatar = useMemo(() => {
@@ -155,6 +189,15 @@ export default function ChatbotModal({ visible, onClose }: Props) {
     }
   }, []);
 
+  const clearQuotaCooldown = useCallback(() => {
+    if (quotaTimerRef.current) {
+      clearInterval(quotaTimerRef.current);
+      quotaTimerRef.current = null;
+    }
+    setQuotaCooldownUntil(null);
+    setQuotaCooldownLeft(0);
+  }, []);
+
   const runTypewriter = useCallback(
     (fullText: string, msgTempId: string) => {
       clearTypewriter();
@@ -184,6 +227,7 @@ export default function ChatbotModal({ visible, onClose }: Props) {
           "Chào bạn! Mình là trợ lý tài chính của BudgetF. Hãy hỏi mình về chi tiêu, ví, danh mục… nhé 💸",
         _display:
           "Chào bạn! Mình là trợ lý tài chính của BudgetF. Hãy hỏi mình về chi tiêu, ví, danh mục… nhé 💸",
+        _actions: DEFAULT_ACTIONS,
         created_at: nowIso(),
       },
     ]);
@@ -224,6 +268,34 @@ export default function ChatbotModal({ visible, onClose }: Props) {
   }, [scrollToEnd, seedWelcome]);
 
   useEffect(() => {
+    if (quotaCooldownUntil) {
+      if (quotaTimerRef.current) clearInterval(quotaTimerRef.current);
+
+      const tick = () => {
+        const secondsLeft = Math.max(
+          0,
+          Math.ceil((quotaCooldownUntil - Date.now()) / 1000),
+        );
+        setQuotaCooldownLeft(secondsLeft);
+        if (secondsLeft <= 0) clearQuotaCooldown();
+      };
+
+      tick();
+      quotaTimerRef.current = setInterval(tick, 1000);
+
+      return () => {
+        if (quotaTimerRef.current) {
+          clearInterval(quotaTimerRef.current);
+          quotaTimerRef.current = null;
+        }
+      };
+    }
+
+    clearQuotaCooldown();
+    return undefined;
+  }, [clearQuotaCooldown, quotaCooldownUntil]);
+
+  useEffect(() => {
     if (visible) {
       Keyboard.dismiss();
 
@@ -246,8 +318,9 @@ export default function ChatbotModal({ visible, onClose }: Props) {
       }
     } else {
       clearTypewriter();
+      clearQuotaCooldown();
     }
-  }, [visible, clearTypewriter, loadLatestSession, scrollToEnd]);
+  }, [visible, clearQuotaCooldown, clearTypewriter, loadLatestSession, scrollToEnd]);
 
   const close = () => {
     Keyboard.dismiss();
@@ -255,6 +328,7 @@ export default function ChatbotModal({ visible, onClose }: Props) {
   };
 
   const startNewChat = () => {
+    clearQuotaCooldown();
     setSessionId(null);
     seedWelcome();
     setTimeout(scrollToEnd, 50);
@@ -290,7 +364,7 @@ export default function ChatbotModal({ visible, onClose }: Props) {
   const send = useCallback(
     async (overrideText?: string) => {
       const question = (overrideText ?? text).trim();
-      if (!question || sending) return;
+      if (!question || sending || quotaCooldownLeft > 0) return;
 
       Keyboard.dismiss();
       setText("");
@@ -314,8 +388,9 @@ export default function ChatbotModal({ visible, onClose }: Props) {
 
       try {
         const res = await askChatbot({ message: question, sessionId });
-        if (res.sessionId && res.sessionId !== sessionId)
+        if (res.sessionId && res.sessionId !== sessionId) {
           setSessionId(res.sessionId);
+        }
 
         setMessages((prev) =>
           prev.map((m) =>
@@ -327,6 +402,11 @@ export default function ChatbotModal({ visible, onClose }: Props) {
 
         const reply =
           res.reply || "Mình chưa nhận được câu trả lời từ máy chủ.";
+        const actions = normalizeActions(res.meta);
+        const note =
+          res.meta?.note && !reply.includes(res.meta.note)
+            ? res.meta.note
+            : null;
         const botId = makeTempId();
 
         setMessages((prev) => [
@@ -336,10 +416,24 @@ export default function ChatbotModal({ visible, onClose }: Props) {
             sender: "assistant",
             content: reply,
             _display: "",
+            _actions: actions,
+            _note: note,
+            _meta: res.meta ?? null,
             created_at: nowIso(),
           },
         ]);
         setTimeout(scrollToEnd, 10);
+
+        const cooldownSeconds = Number(
+          res.retryAfterSeconds ?? res.meta?.retryAfterSeconds ?? 0,
+        );
+        if (res.quotaLimited) {
+          const safeCooldown =
+            Number.isFinite(cooldownSeconds) && cooldownSeconds > 0
+              ? cooldownSeconds
+              : QUOTA_DEFAULT_COOLDOWN_SECONDS;
+          setQuotaCooldownUntil(Date.now() + safeCooldown * 1000);
+        }
 
         runTypewriter(reply, botId);
       } catch (e: any) {
@@ -354,7 +448,7 @@ export default function ChatbotModal({ visible, onClose }: Props) {
         setSending(false);
       }
     },
-    [runTypewriter, scrollToEnd, sending, sessionId, text],
+    [quotaCooldownLeft, runTypewriter, scrollToEnd, sending, sessionId, text],
   );
 
   const headerPadTop = useMemo(
@@ -446,31 +540,86 @@ export default function ChatbotModal({ visible, onClose }: Props) {
       );
     }
 
-    // assistant / system -> hiển thị như bot
+    const actions =
+      item._actions?.length
+        ? item._actions
+        : item.sender === "assistant" && messages.length === 1
+          ? DEFAULT_ACTIONS
+          : [];
+
+    const isClarification = item._meta?.kind === "clarification";
+    const clarificationLabel = item._meta?.pendingField
+      ? ({
+          wallet: "ví",
+          category: "danh mục",
+          amount: "số tiền",
+          type: "loại giao dịch",
+        } as const)[item._meta.pendingField] ?? item._meta.pendingField
+      : item._meta?.field ?? null;
+    const helperText = item._meta?.prompt || item._note || null;
+
     return (
-      <View style={[styles.row, styles.rowLeft]}>
-        <BotAvatar />
-        <View
-          style={[
-            styles.bubble,
-            {
-              backgroundColor: palette.botBubbleBg,
-              borderColor: palette.botBubbleBorder,
-            },
-          ]}
-        >
-          <Text
+      <View style={styles.messageBlock}>
+        <View style={[styles.row, styles.rowLeft]}>
+          <BotAvatar />
+          <View
             style={[
-              styles.msgText,
+              styles.bubble,
               {
-                color: palette.text,
-                fontFamily: "Faustina_400Regular",
+                backgroundColor: palette.botBubbleBg,
+                borderColor: palette.botBubbleBorder,
               },
             ]}
           >
-            {shown}
-          </Text>
+            <Text
+              style={[
+                styles.msgText,
+                {
+                  color: palette.text,
+                  fontFamily: "Faustina_400Regular",
+                },
+              ]}
+            >
+              {shown}
+            </Text>
+            {helperText ? (
+              <Text
+                style={[
+                  styles.noteText,
+                  {
+                    color: palette.textSub,
+                    marginTop: isClarification ? 8 : 6,
+                    fontFamily: "Faustina_500Medium",
+                  },
+                ]}
+              >
+                {isClarification && clarificationLabel
+                  ? `Đang chờ: ${clarificationLabel}. ${helperText}`
+                  : helperText}
+              </Text>
+            ) : null}
+          </View>
         </View>
+
+        {actions.length ? (
+          <View style={styles.actionWrap}>
+            {actions.map((action) => (
+              <Pressable
+                key={`${item._tempId ?? item.id ?? "action"}:${action.value}`}
+                onPress={() => handleSuggestionClick(action.value)}
+                style={({ pressed }) => [
+                  styles.actionChip,
+                  {
+                    backgroundColor: palette.suggestPillBg,
+                    opacity: pressed ? 0.9 : 1,
+                  },
+                ]}
+              >
+                <Text style={styles.actionChipText}>{action.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
       </View>
     );
   };
@@ -544,64 +693,6 @@ export default function ChatbotModal({ visible, onClose }: Props) {
             </Pressable>
           </LinearGradient>
 
-          {/* SUGGESTIONS */}
-          <View
-            style={[
-              styles.suggestBox,
-              {
-                backgroundColor: palette.suggestBg,
-                borderBottomColor: palette.suggestBorder,
-              },
-            ]}
-          >
-            <View style={styles.suggestHeader}>
-              <View style={styles.suggestTitleRow}>
-                <Text style={styles.sparkle}>✦</Text>
-                <Text style={[styles.suggestTitle, { color: palette.textSub }]}>
-                  Bạn có thể hỏi:
-                </Text>
-              </View>
-
-              <Pressable
-                onPress={() => setShowSuggestions((p) => !p)}
-                style={({ pressed }) => [
-                  styles.chevBtn,
-                  {
-                    borderColor: palette.panelBorder,
-                    backgroundColor: isDark
-                      ? "rgba(15,23,42,0.8)"
-                      : "rgba(226,232,240,0.8)",
-                    opacity: pressed ? 0.85 : 1,
-                  },
-                ]}
-              >
-                <Text style={[styles.chevText, { color: palette.text }]}>
-                  {showSuggestions ? "˄" : "˅"}
-                </Text>
-              </Pressable>
-            </View>
-
-            {showSuggestions ? (
-              <View style={styles.suggestList}>
-                {SUGGESTIONS.map((s) => (
-                  <Pressable
-                    key={s}
-                    onPress={() => handleSuggestionClick(s)}
-                    style={({ pressed }) => [
-                      styles.suggestPill,
-                      {
-                        backgroundColor: palette.suggestPillBg,
-                        opacity: pressed ? 0.9 : 1,
-                      },
-                    ]}
-                  >
-                    <Text style={styles.suggestPillText}>{s}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
-          </View>
-
           {/* BODY */}
           <View style={[styles.body, { backgroundColor: palette.bodyBg }]}>
             {loading ? (
@@ -638,7 +729,11 @@ export default function ChatbotModal({ visible, onClose }: Props) {
             <TextInput
               value={text}
               onChangeText={setText}
-              placeholder="Nhập câu hỏi của bạn..."
+              placeholder={
+                quotaCooldownLeft > 0
+                  ? `Đang chờ ${quotaCooldownLeft} giây...`
+                  : "Nhập câu hỏi của bạn..."
+              }
               placeholderTextColor={palette.textMuted}
               style={[
                 styles.input,
@@ -650,28 +745,39 @@ export default function ChatbotModal({ visible, onClose }: Props) {
               ]}
               returnKeyType="send"
               onSubmitEditing={() => send()}
+              editable={quotaCooldownLeft <= 0}
               multiline
             />
 
-            <Pressable
-              onPress={() => send()}
-              disabled={!text.trim() || sending}
-              style={({ pressed }) => [
-                styles.sendBtnWrap,
-                (!text.trim() || sending) && { opacity: 0.5 },
-                pressed && { transform: [{ scale: 0.97 }] },
-              ]}
-            >
-              <LinearGradient
-                colors={palette.headerGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.sendBtn}
+            <View style={{ alignItems: "flex-end", gap: 6 }}>
+              {quotaCooldownLeft > 0 ? (
+                <Text style={[styles.cooldownText, { color: palette.textSub }]}>
+                  Tạm dừng gửi AI {quotaCooldownLeft}s
+                </Text>
+              ) : null}
+
+              <Pressable
+                onPress={() => send()}
+                disabled={!text.trim() || sending || quotaCooldownLeft > 0}
+                style={({ pressed }) => [
+                  styles.sendBtnWrap,
+                  (!text.trim() || sending || quotaCooldownLeft > 0) && {
+                    opacity: 0.5,
+                  },
+                  pressed && { transform: [{ scale: 0.97 }] },
+                ]}
               >
-                <Text style={styles.sendBtnText}>Gửi</Text>
-                <Text style={styles.sendArrow}>➤</Text>
-              </LinearGradient>
-            </Pressable>
+                <LinearGradient
+                  colors={palette.headerGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.sendBtn}
+                >
+                  <Text style={styles.sendBtnText}>Gửi</Text>
+                  <Text style={styles.sendArrow}>➤</Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -765,60 +871,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
-  /** SUGGESTIONS */
-  suggestBox: {
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-  },
-  suggestHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  suggestTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  sparkle: {
-    color: "#FACC15",
-    fontWeight: "900",
-  },
-  suggestTitle: {
-    fontWeight: "700",
-    fontSize: 12,
-    fontFamily: "Faustina_500Medium",
-  },
-  chevBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: 999,
-    borderWidth: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  chevText: {
-    fontWeight: "900",
-    fontSize: 14,
-  },
-  suggestList: {
-    marginTop: 10,
-    gap: 8,
-  },
-  suggestPill: {
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  suggestPillText: {
-    color: "#F9FAFB",
-    fontWeight: "600",
-    fontSize: 13,
-    fontFamily: "Faustina_500Medium",
-  },
-
   /** BODY */
   body: {
     flex: 1,
@@ -845,6 +897,35 @@ const styles = StyleSheet.create({
   },
   rowLeft: { justifyContent: "flex-start" },
   rowRight: { justifyContent: "flex-end" },
+  messageBlock: {
+    gap: 8,
+  },
+  actionWrap: {
+    marginLeft: 40,
+    marginRight: 16,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  actionChip: {
+    maxWidth: "100%",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  actionChipText: {
+    color: "#F9FAFB",
+    fontWeight: "700",
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: "Faustina_600SemiBold",
+  },
+  noteText: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: "Faustina_400Regular",
+  },
 
   /** Avatars */
   avatarWrapBot: {
@@ -924,6 +1005,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
     fontFamily: "Faustina_400Regular",
+  },
+  cooldownText: {
+    fontFamily: "Faustina_500Medium",
+    fontSize: 12,
   },
   sendBtnWrap: {
     height: 44,

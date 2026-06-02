@@ -19,7 +19,7 @@ export default function ChatbotOverlay({
     <>
       {children}
 
-      {/* luôn hiện trong MainTabs */}
+      {/* Bubble AI dùng chung cho vùng đã đăng nhập */}
       <ChatbotFab bottomOffset={bottomOffset} onPress={() => setOpen(true)} />
       <ChatbotModal visible={open} onClose={() => setOpen(false)} />
     </>

@@ -24,6 +24,7 @@ import UpdateProfileScreen from "./src/screens/ProfileScreen";
 import ChangePasswordScreen from "./src/screens/ChangePasswordScreen";
 import SettingsScreen from "./src/screens/SettingsScreen";
 import ManageMonthlyBudgetScreen from "./src/screens/ManageMonthlyBudgetScreen";
+import ChatbotOverlay from "./src/components/chatbot/ChatbotOverlay";
 
 export type RootStackParamList = {
   RootTabs: undefined;
@@ -168,51 +169,53 @@ export default function App() {
             <WalletProvider>
               <NavigationContainer key={authenticated ? "app" : "auth"}>
                 {authenticated ? (
-                  <Stack.Navigator
-                    initialRouteName="RootTabs"
-                    screenOptions={{ headerShown: false }}
-                  >
-                    <Stack.Screen name="RootTabs" component={MainTabs} />
-                    <Stack.Screen
-                      name="AddTransaction"
-                      component={TransactionFormScreen}
-                    />
-                    <Stack.Screen
-                      name="EditTransaction"
-                      component={TransactionFormScreen}
-                    />
-                    <Stack.Screen
-                      name="TransactionTrash"
-                      component={TransactionTrashScreen}
-                    />
-                    <Stack.Screen name="WalletForm" component={WalletFormScreen} />
-                    <Stack.Screen name="EditWallet" component={WalletFormScreen} />
-                    <Stack.Screen
-                      name="WalletManager"
-                      component={WalletListScreen}
-                    />
-                    <Stack.Screen
-                      name="BudgetMonth"
-                      component={ManageMonthlyBudgetScreen}
-                    />
-                    <Stack.Screen name="Categories" component={CategoriesNavigator} />
-                    <Stack.Screen
-                      name="UpdateProfile"
-                      component={UpdateProfileScreen}
-                    />
-                    <Stack.Screen
-                      name="ChangePassword"
-                      component={ChangePasswordScreen}
-                    />
-                    <Stack.Screen name="Settings">
-                      {(props) => (
-                        <SettingsScreen
-                          {...props}
-                          onLogout={() => setAuthenticated(false)}
-                        />
-                      )}
-                    </Stack.Screen>
-                  </Stack.Navigator>
+                  <ChatbotOverlay>
+                    <Stack.Navigator
+                      initialRouteName="RootTabs"
+                      screenOptions={{ headerShown: false }}
+                    >
+                      <Stack.Screen name="RootTabs" component={MainTabs} />
+                      <Stack.Screen
+                        name="AddTransaction"
+                        component={TransactionFormScreen}
+                      />
+                      <Stack.Screen
+                        name="EditTransaction"
+                        component={TransactionFormScreen}
+                      />
+                      <Stack.Screen
+                        name="TransactionTrash"
+                        component={TransactionTrashScreen}
+                      />
+                      <Stack.Screen name="WalletForm" component={WalletFormScreen} />
+                      <Stack.Screen name="EditWallet" component={WalletFormScreen} />
+                      <Stack.Screen
+                        name="WalletManager"
+                        component={WalletListScreen}
+                      />
+                      <Stack.Screen
+                        name="BudgetMonth"
+                        component={ManageMonthlyBudgetScreen}
+                      />
+                      <Stack.Screen name="Categories" component={CategoriesNavigator} />
+                      <Stack.Screen
+                        name="UpdateProfile"
+                        component={UpdateProfileScreen}
+                      />
+                      <Stack.Screen
+                        name="ChangePassword"
+                        component={ChangePasswordScreen}
+                      />
+                      <Stack.Screen name="Settings">
+                        {(props) => (
+                          <SettingsScreen
+                            {...props}
+                            onLogout={() => setAuthenticated(false)}
+                          />
+                        )}
+                      </Stack.Screen>
+                    </Stack.Navigator>
+                  </ChatbotOverlay>
                 ) : (
                   <AuthNavigator onAuthSuccess={handleAuthSuccess} />
                 )}

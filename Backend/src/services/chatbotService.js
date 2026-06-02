@@ -128,12 +128,114 @@ function extractWalletName(rawMessage) {
   return name;
 }
 
+function normalizeLoose(str) {
+  return String(str || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function detectPendingFieldFromHistory(history = []) {
+  const recentAssistant = [...(history || [])]
+    .reverse()
+    .find((m) => m?.sender === "assistant" && String(m?.content || "").trim());
+
+  const text = normalizeLoose(recentAssistant?.content || "");
+  if (!text) return null;
+
+  if (
+    /vi nao|voi nao|vi co san|ten vi|vao vi nao|cong thu nhap vao vi|chon lai ten vi|chon lai vi/.test(
+      text,
+    )
+  ) {
+    return "wallet";
+  }
+
+  if (
+    /danh muc nao|thu nhap nay thuoc danh muc nao|khoan chi nay thuoc danh muc nao|chon lai danh muc|thuoc danh muc nao/.test(
+      text,
+    )
+  ) {
+    return "category";
+  }
+
+  if (
+    /bao nhieu tien|bao nhieu|so tien|nhap so tien/.test(text) &&
+    !/thang|nam/.test(text)
+  ) {
+    return "amount";
+  }
+
+  if (/thu nhap hay chi tieu|loai giao dich|la thu nhap hay chi tieu/.test(text)) {
+    return "type";
+  }
+
+  return null;
+}
+
+function buildClarificationReply(field) {
+  switch (field) {
+    case "wallet":
+      return "Mình chưa nhận diện được ví. Bạn nhập đúng tên ví hoặc chọn một ví có sẵn nhé.";
+    case "category":
+      return "Mình chưa nhận diện được danh mục. Bạn chọn lại danh mục phù hợp nhé.";
+    case "amount":
+      return "Mình chưa nhận diện được số tiền. Bạn nhập số tiền cụ thể nhé.";
+    case "type":
+      return "Mình chưa rõ đây là thu nhập hay chi tiêu. Bạn chọn một trong hai nhé.";
+    default:
+      return "Mình chưa hiểu ý bạn lắm. Bạn nói rõ hơn một chút nhé.";
+  }
+}
+
+function shouldUseClarificationFallback(history = [], latestMessage = "") {
+  const pendingField = detectPendingFieldFromHistory(history);
+  if (!pendingField) return null;
+
+  const normalized = normalizeLoose(latestMessage);
+  if (!normalized) return pendingField;
+
+  const tokenCount = normalized.split(" ").filter(Boolean).length;
+  if (tokenCount <= 2) return pendingField;
+
+  if (/^[0-9.,]+$/.test(normalized)) return pendingField;
+
+  return null;
+}
+
 /**
  * Hàm chính: dùng cho controller
  */
 exports.callAssistant = async ({ userId, history, latestMessage }) => {
   try {
-    return await runGeminiWithTools({ userId, history, latestMessage });
+    const result = await runGeminiWithTools({ userId, history, latestMessage });
+    const fallbackField = shouldUseClarificationFallback(history, latestMessage);
+
+    if (
+      fallbackField &&
+      typeof result === "object" &&
+      result &&
+      (result.reply === "Xin lỗi, mình chưa xử lý được câu hỏi này." ||
+        result.reply === "Xin lỗi, câu hỏi này cần nhiều bước xử lý hơn. Bạn thử hỏi cụ thể hơn (tháng/năm, danh mục, ví) nhé." ||
+        !result.meta)
+    ) {
+      return {
+        reply: buildClarificationReply(fallbackField),
+        meta: {
+          kind: "clarification",
+          field: fallbackField,
+          pendingField: fallbackField,
+          prompt: buildClarificationReply(fallbackField),
+        },
+        status: 200,
+      };
+    }
+
+    return result;
   } catch (err) {
     console.error("Gemini error:", err?.message || err);
     return "Xin lỗi, hệ thống trợ lý đang gặp lỗi. Bạn thử lại sau nhé.";
