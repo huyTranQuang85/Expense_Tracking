@@ -8,9 +8,17 @@ import {
   useColorScheme,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 
 export function GreenBlob() {
-  return <View style={styles.blob} />;
+  return (
+    <LinearGradient
+      colors={["rgba(16,185,129,0.26)", "rgba(37,99,235,0.12)", "transparent"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.accentPanel}
+    />
+  );
 }
 
 export function BackCircle({ onPress }: { onPress: () => void }) {
@@ -20,7 +28,10 @@ export function BackCircle({ onPress }: { onPress: () => void }) {
       onPress={onPress}
       style={[
         styles.backCircle,
-        { borderColor: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)" },
+        {
+          backgroundColor: isDark ? "rgba(15,23,42,0.76)" : "#FFFFFF",
+          borderColor: isDark ? "rgba(148,163,184,0.26)" : "rgba(15,23,42,0.08)",
+        },
       ]}
     >
       <Ionicons
@@ -57,9 +68,9 @@ export function Field(props: React.ComponentProps<typeof TextInput>) {
         styles.input,
         {
           backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "white",
-          borderColor: isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.18)",
+          borderColor: isDark ? "rgba(148,163,184,0.24)" : "rgba(15,23,42,0.08)",
           color: isDark ? "white" : "#111",
-          shadowOpacity: isDark ? 0 : 0.18,
+          shadowOpacity: isDark ? 0 : 0.06,
         },
       ]}
       {...props}
@@ -96,20 +107,18 @@ export function ErrorText({ children }: { children?: React.ReactNode }) {
 }
 
 const styles = StyleSheet.create({
-  blob: {
+  accentPanel: {
     position: "absolute",
-    right: -120,
-    top: -110,
-    width: 280,
-    height: 280,
-    borderRadius: 999,
-    backgroundColor: "#BFF5B6",
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 260,
   },
   backCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 999,
-    borderWidth: 1.6,
+    width: 40,
+    height: 40,
+    borderRadius: 16,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -119,28 +128,28 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   input: {
-    height: 44,
-    borderRadius: 22,
+    minHeight: 50,
+    borderRadius: 18,
     borderWidth: 1,
     paddingHorizontal: 16,
     fontFamily: "Faustina_400Regular",
     fontSize: 14,
     shadowColor: "#000",
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 6,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 2,
   },
   primaryBtn: {
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#4EECA5",
+    minHeight: 50,
+    borderRadius: 18,
+    backgroundColor: "#10B981",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 10,
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
   },
   primaryBtnText: {
     fontFamily: "Faustina_700Bold",

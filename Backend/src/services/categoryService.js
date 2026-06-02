@@ -8,6 +8,9 @@ function mapCategoryRow(row) {
     type: row.type, // 'income' | 'expense'
     icon: row.icon,
     color: row.color,
+    groupKey: row.group_key,
+    sortOrder: row.sort_order,
+    isSystem: row.is_system,
     parentCategoryId: row.parent_category_id,
     isGlobal: row.user_id === null,
   };
@@ -19,13 +22,19 @@ function mapCategoryRow(row) {
  * - Category riêng của user
  * Optional filter by type
  */
-async function getCategories(userId, type) {
+async function getCategories(userId, type, options = {}) {
+  const { includeSystem = false } = options;
   const params = [userId];
   let whereType = "";
+  let whereSystem = "";
 
   if (type === "income" || type === "expense") {
     params.push(type);
     whereType = "AND c.type = $2";
+  }
+
+  if (!includeSystem) {
+    whereSystem = "AND c.is_system = false";
   }
 
   const sql = `
@@ -33,9 +42,11 @@ async function getCategories(userId, type) {
     FROM categories c
     WHERE (c.user_id IS NULL OR c.user_id = $1)
       ${whereType}
+      ${whereSystem}
     ORDER BY 
       c.type,
       c.parent_category_id NULLS FIRST,
+      c.sort_order,
       lower(c.category_name)
   `;
 
@@ -47,7 +58,7 @@ async function getCategories(userId, type) {
  * Thêm category mới cho user
  */
 async function createCategory(userId, payload) {
-  let { name, type, icon, color, parentCategoryId } = payload;
+  let { name, type, icon, color, parentCategoryId, groupKey, sortOrder } = payload;
 
   name = name?.trim();
   if (!name) {
@@ -99,9 +110,9 @@ async function createCategory(userId, payload) {
 
   const sql = `
     INSERT INTO categories (
-      user_id, category_name, type, icon, color, parent_category_id
+      user_id, category_name, type, icon, color, parent_category_id, group_key, sort_order
     )
-    VALUES ($1,$2,$3,$4,$5,$6)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
     RETURNING *
   `;
 
@@ -112,6 +123,8 @@ async function createCategory(userId, payload) {
     icon || null,
     color || null,
     parentId,
+    groupKey || null,
+    Number.isFinite(Number(sortOrder)) ? Number(sortOrder) : 0,
   ]);
 
   return mapCategoryRow(rows[0]);
@@ -200,6 +213,10 @@ async function updateCategory(userId, categoryId, updates) {
   let newType = requestedType;
   let newIcon = updates.icon != null ? updates.icon : current.icon;
   let newColor = updates.color != null ? updates.color : current.color;
+  let newGroupKey =
+    updates.groupKey !== undefined ? updates.groupKey : current.group_key;
+  let newSortOrder =
+    updates.sortOrder !== undefined ? updates.sortOrder : current.sort_order;
 
   // parent: nếu FE không gửi => giữ nguyên
   let newParentId =
@@ -295,8 +312,10 @@ async function updateCategory(userId, categoryId, updates) {
         icon               = $3,
         color              = $4,
         parent_category_id = $5,
+        group_key          = $6,
+        sort_order         = $7,
         updated_at         = now()
-    WHERE category_id = $6 AND user_id = $7
+    WHERE category_id = $8 AND user_id = $9
     RETURNING *
   `;
 
@@ -306,6 +325,8 @@ async function updateCategory(userId, categoryId, updates) {
     newIcon,
     newColor,
     newParentId,
+    newGroupKey,
+    Number.isFinite(Number(newSortOrder)) ? Number(newSortOrder) : 0,
     categoryId,
     userId,
   ]);

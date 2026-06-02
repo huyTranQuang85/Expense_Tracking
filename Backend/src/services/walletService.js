@@ -11,20 +11,32 @@ function mapWalletRow(row) {
     balance: Number(row.balance),
     color: row.color,
     isArchived: row.is_archived,
+    isFrozen: row.is_frozen,
+    currencyCode: row.currency_code,
+    archivedAt: row.archived_at,
     createdAt: row.created_at,
   };
 }
 
-async function getWalletsByUser(userId) {
+async function getWalletsByUser(userId, options = {}) {
+  const { includeArchived = false } = options;
   const sql = `
     SELECT *
     FROM wallets
     WHERE user_id = $1
-      AND is_archived = false
+      ${includeArchived ? "" : "AND is_archived = false"}
     ORDER BY wallet_id ASC
   `;
   const { rows } = await pool.query(sql, [userId]);
   return rows.map(mapWalletRow);
+}
+
+async function getWalletById(userId, walletId) {
+  const { rows } = await pool.query(
+    "SELECT * FROM wallets WHERE wallet_id = $1 AND user_id = $2",
+    [walletId, userId]
+  );
+  return rows[0] ? mapWalletRow(rows[0]) : null;
 }
 
 async function createWallet(userId, payload) {
@@ -41,6 +53,8 @@ async function createWallet(userId, payload) {
   const description = payload.description;
   const icon = payload.icon;
   const type = payload.type || "standard";
+  const currencyCode = payload.currencyCode || payload.currency_code || "VND";
+  const isFrozen = Boolean(payload.isFrozen || payload.is_frozen || false);
 
   const initialBalance = payload.balance != null ? Number(payload.balance) : 0;
 
@@ -51,8 +65,8 @@ async function createWallet(userId, payload) {
   }
 
   const sql = `
-    INSERT INTO wallets (user_id, wallet_name, description, icon, type, balance, color)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    INSERT INTO wallets (user_id, wallet_name, description, icon, type, currency_code, balance, color, is_frozen)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     RETURNING *
   `;
 
@@ -62,15 +76,27 @@ async function createWallet(userId, payload) {
     description || null,
     icon || null,
     type,
+    currencyCode,
     initialBalance,
     color,
+    isFrozen,
   ]);
 
   return mapWalletRow(rows[0]);
 }
 
 async function updateWallet(userId, walletId, updates) {
-  const { name, description, icon, type, balance, color } = updates;
+  const {
+    name,
+    description,
+    icon,
+    type,
+    balance,
+    color,
+    isArchived,
+    isFrozen,
+    currencyCode,
+  } = updates;
 
   // kiểm tra ví có thuộc user không
   const { rows: existedRows } = await pool.query(
@@ -97,10 +123,14 @@ async function updateWallet(userId, walletId, updates) {
         description = $2,
         icon        = $3,
         type        = $4,
-        balance     = $5,
-        color       = $6,
+        currency_code = $5,
+        balance     = $6,
+        color       = $7,
+        is_archived = $8,
+        is_frozen   = $9,
+        archived_at = CASE WHEN $8 THEN COALESCE(archived_at, now()) ELSE NULL END,
         updated_at  = now()
-    WHERE wallet_id = $7 AND user_id = $8
+    WHERE wallet_id = $10 AND user_id = $11
     RETURNING *
   `;
 
@@ -109,8 +139,11 @@ async function updateWallet(userId, walletId, updates) {
     description != null ? description : current.description,
     icon != null ? icon : current.icon,
     type != null ? type : current.type,
+    currencyCode != null ? currencyCode : current.currency_code,
     balance != null ? Number(balance) : current.balance,
     color != null ? color : current.color,
+    isArchived != null ? Boolean(isArchived) : current.is_archived,
+    isFrozen != null ? Boolean(isFrozen) : current.is_frozen,
     walletId,
     userId,
   ]);
@@ -155,9 +188,65 @@ async function deleteWallet(userId, walletId) {
   return true;
 }
 
+async function getWalletStatsByUser(userId, options = {}) {
+  const { fromDate, toDate } = options;
+  const params = [userId];
+  const where = ["t.user_id = $1", "t.deleted_at IS NULL"];
+
+  if (fromDate) {
+    params.push(fromDate);
+    where.push(`t.tx_date >= $${params.length}`);
+  }
+
+  if (toDate) {
+    params.push(toDate);
+    where.push(`t.tx_date <= $${params.length}`);
+  }
+
+  const sql = `
+    SELECT
+      w.wallet_id,
+      w.wallet_name,
+      w.currency_code,
+      w.balance,
+      w.color,
+      w.icon,
+      w.type,
+      w.is_archived,
+      w.is_frozen,
+      COALESCE(SUM(CASE WHEN c.type = 'income' THEN t.amount ELSE 0 END), 0) AS income_total,
+      COALESCE(SUM(CASE WHEN c.type = 'expense' THEN t.amount ELSE 0 END), 0) AS expense_total
+    FROM wallets w
+    LEFT JOIN transactions t ON t.wallet_id = w.wallet_id
+    LEFT JOIN categories c ON c.category_id = t.category_id
+    WHERE w.user_id = $1
+      AND (c.is_system IS NULL OR c.is_system = false)
+      ${where.length ? "AND " + where.slice(1).join(" AND ") : ""}
+    GROUP BY w.wallet_id
+    ORDER BY w.wallet_id ASC
+  `;
+
+  const { rows } = await pool.query(sql, params);
+  return rows.map((row) => ({
+    id: row.wallet_id,
+    name: row.wallet_name,
+    balance: Number(row.balance),
+    currencyCode: row.currency_code,
+    color: row.color,
+    icon: row.icon,
+    type: row.type,
+    isArchived: row.is_archived,
+    isFrozen: row.is_frozen,
+    incomeTotal: Number(row.income_total),
+    expenseTotal: Number(row.expense_total),
+  }));
+}
+
 module.exports = {
   getWalletsByUser,
+  getWalletById,
   createWallet,
   updateWallet,
   deleteWallet,
+  getWalletStatsByUser,
 };
