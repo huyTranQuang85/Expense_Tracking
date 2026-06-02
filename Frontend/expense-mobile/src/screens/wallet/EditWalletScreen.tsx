@@ -24,20 +24,39 @@ import { LinearGradient } from "expo-linear-gradient";
 import { updateWallet, Wallet } from "../../services/wallets";
 import { useTheme } from "../../theme/ThemeContext";
 
-const ICONS = [
-  "💰",
-  "💳",
-  "🏦",
-  "🪙",
-  "🐷",
-  "👜",
-  "🎁",
-  "🏠",
-  "🚗",
-  "🍔",
-  "🧾",
-  "📦",
+const ICONS: Array<{ key: string; icon: keyof typeof Ionicons.glyphMap }> = [
+  { key: "cash", icon: "cash-outline" },
+  { key: "card", icon: "card-outline" },
+  { key: "bank", icon: "business-outline" },
+  { key: "coins", icon: "server-outline" },
+  { key: "wallet", icon: "wallet-outline" },
+  { key: "bag", icon: "bag-handle-outline" },
+  { key: "gift", icon: "gift-outline" },
+  { key: "home", icon: "home-outline" },
+  { key: "car", icon: "car-outline" },
+  { key: "food", icon: "fast-food-outline" },
+  { key: "receipt", icon: "receipt-outline" },
+  { key: "box", icon: "cube-outline" },
 ];
+
+function normalizeWalletIcon(raw?: string | null) {
+  const map: Record<string, string> = {
+    "💰": "cash",
+    "💳": "card",
+    "🏦": "bank",
+    "🪙": "coins",
+    "🐷": "wallet",
+    "👜": "bag",
+    "🎁": "gift",
+    "🏠": "home",
+    "🚗": "car",
+    "🍔": "food",
+    "🧾": "receipt",
+    "📦": "box",
+  };
+  const value = String(raw ?? "").trim();
+  return ICONS.some((x) => x.key === value) ? value : map[value] ?? ICONS[0].key;
+}
 
 type ColorSwatch =
   | { key: string; type: "solid"; primary: string }
@@ -172,7 +191,7 @@ export default function EditWalletScreen({ navigation, route }: Props) {
 
   const [name, setName] = useState(wallet?.name ?? "");
   const [description, setDescription] = useState(wallet?.description ?? "");
-  const [icon, setIcon] = useState<string>(wallet?.icon ?? ICONS[0]);
+  const [icon, setIcon] = useState<string>(normalizeWalletIcon(wallet?.icon));
 
   const initialSwatchKey = useMemo(() => {
     const base = wallet?.color ?? "#0F766E";
@@ -188,7 +207,7 @@ export default function EditWalletScreen({ navigation, route }: Props) {
   useEffect(() => {
     setSelectedSwatchKey(initialSwatchKey);
     setColor(wallet?.color ?? "#0F766E");
-    setIcon(wallet?.icon ?? ICONS[0]);
+    setIcon(normalizeWalletIcon(wallet?.icon));
     setName(wallet?.name ?? "");
     setDescription(wallet?.description ?? "");
   }, [
@@ -270,11 +289,11 @@ export default function EditWalletScreen({ navigation, route }: Props) {
     );
   }
 
-  const renderIcon = ({ item }: { item: string }) => {
-    const active = item === icon;
+  const renderIcon = ({ item }: { item: (typeof ICONS)[number] }) => {
+    const active = item.key === icon;
     return (
       <Pressable
-        onPress={() => setIcon(item)}
+        onPress={() => setIcon(item.key)}
         style={({ pressed }) => [
           styles.iconCell,
           {
@@ -288,7 +307,11 @@ export default function EditWalletScreen({ navigation, route }: Props) {
           },
         ]}
       >
-        <Text style={{ fontSize: 18 }}>{item}</Text>
+        <Ionicons
+          name={item.icon}
+          size={20}
+          color={active ? "#10B981" : ui.muted}
+        />
       </Pressable>
     );
   };
@@ -377,9 +400,18 @@ export default function EditWalletScreen({ navigation, route }: Props) {
                 },
               ]}
             >
-              <View style={[styles.readonlyCircle, { backgroundColor: color }]}>
-                <Text style={{ fontSize: 18 }}>{icon}</Text>
-              </View>
+              <LinearGradient
+                colors={[color, "#10B981"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.readonlyCircle}
+              >
+                <Ionicons
+                  name={ICONS.find((x) => x.key === icon)?.icon ?? "wallet-outline"}
+                  size={22}
+                  color="#FFFFFF"
+                />
+              </LinearGradient>
 
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={[styles.readonlyLabel, { color: ui.muted }]}>
@@ -457,7 +489,7 @@ export default function EditWalletScreen({ navigation, route }: Props) {
               >
                 <FlatList
                   data={ICONS}
-                  keyExtractor={(it) => it}
+                  keyExtractor={(it) => it.key}
                   renderItem={renderIcon}
                   numColumns={6}
                   scrollEnabled={false}
@@ -563,11 +595,11 @@ const styles = StyleSheet.create({
   readonlyBox: {
     marginTop: 14,
     backgroundColor: "rgba(255,255,255,0.75)",
-    borderRadius: 16,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: "rgba(15,23,42,0.06)",
-    borderTopWidth: 3,
-    borderLeftWidth: 3,
+    borderTopWidth: 0,
+    borderLeftWidth: 0,
     padding: 14,
     flexDirection: "row",
     alignItems: "center",
@@ -575,9 +607,9 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   readonlyCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 52,
+    height: 52,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -604,8 +636,8 @@ const styles = StyleSheet.create({
   card: {
     marginTop: 12,
     backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 14,
+    borderRadius: 24,
+    padding: 16,
     borderWidth: 1,
     borderColor: "rgba(15,23,42,0.06)",
   },
@@ -620,7 +652,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     borderRadius: 14,
     backgroundColor: "rgba(148,163,184,0.16)",
-    height: 44,
+    minHeight: 48,
     justifyContent: "center",
     paddingHorizontal: 12,
     borderWidth: 1,
@@ -640,9 +672,9 @@ const styles = StyleSheet.create({
 
   iconCell: {
     flex: 1,
-    height: 38,
+    height: 44,
     marginHorizontal: 4,
-    borderRadius: 12,
+    borderRadius: 16,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
@@ -656,9 +688,9 @@ const styles = StyleSheet.create({
 
   swatchWrap: {
     flex: 1,
-    height: 38,
+    height: 44,
     marginHorizontal: 4,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 4,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
@@ -674,8 +706,8 @@ const styles = StyleSheet.create({
   btnRow: { flexDirection: "row", gap: 12, marginTop: 16 },
   btnGhost: {
     flex: 1,
-    height: 46,
-    borderRadius: 23,
+    minHeight: 50,
+    borderRadius: 18,
     backgroundColor: "rgba(148,163,184,0.18)",
     alignItems: "center",
     justifyContent: "center",
@@ -688,9 +720,9 @@ const styles = StyleSheet.create({
 
   btnPrimary: {
     flex: 1,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: "#34D399",
+    minHeight: 50,
+    borderRadius: 18,
+    backgroundColor: "#10B981",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",

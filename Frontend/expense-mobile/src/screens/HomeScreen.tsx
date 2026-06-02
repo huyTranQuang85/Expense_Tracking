@@ -66,7 +66,7 @@ function getInitials(name: string) {
     .join("");
 }
 
-const GREEN = "#34D399";
+const GREEN = "#10B981";
 
 function fmtVnd(n: number) {
   const abs = Math.abs(Number(n || 0));
@@ -106,7 +106,7 @@ export default function HomeScreen() {
   const nav = useNavigation<any>();
 
   // 🔹 Dùng ThemeContext giống AddTransaction
-  const { mode } = useTheme();
+  const { mode, colors } = useTheme();
   const isDark = mode === "dark";
 
   // 🔹 Bảng màu chung light/dark cho Home
@@ -114,24 +114,24 @@ export default function HomeScreen() {
     () =>
       !isDark
         ? {
-            bg: "#F3F5F7",
-            card: "#FFFFFF",
-            soft: "#F3F4F6",
-            track: "rgba(15,23,42,0.06)",
-            stroke: "rgba(15,23,42,0.08)",
-            text: "#111827",
-            muted: "rgba(55,65,81,0.8)",
+            bg: colors.bg,
+            card: colors.card,
+            soft: colors.soft,
+            track: colors.track,
+            stroke: colors.stroke,
+            text: colors.text,
+            muted: colors.muted,
           }
         : {
-            bg: "#020617", // slate-950
-            card: "rgba(15,23,42,0.96)", // slate-900
-            soft: "rgba(15,23,42,0.85)", // list item bg
-            track: "rgba(30,64,175,0.35)", // progress / chip bg
-            stroke: "rgba(148,163,184,0.45)", // border
-            text: "rgba(248,250,252,0.96)", // slate-50
-            muted: "rgba(148,163,184,0.95)", // slate-400
+            bg: colors.bg,
+            card: colors.card,
+            soft: colors.soft,
+            track: colors.track,
+            stroke: colors.stroke,
+            text: colors.text,
+            muted: colors.muted,
           },
-    [isDark],
+    [colors, isDark],
   );
 
   const shadow = isDark ? {} : styles.shadow;
@@ -339,45 +339,69 @@ export default function HomeScreen() {
             {/* Header */}
             <View style={styles.headerRow}>
               <View style={styles.headerLeft}>
-                <View
-                  style={[
-                    styles.avatarBox,
+                <Pressable
+                  onPress={() => nav.navigate("UpdateProfile")}
+                  style={({ pressed }) => [
+                    styles.profileHit,
+                    pressed && { opacity: 0.9 },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.avatarBox,
+                      {
+                        backgroundColor: ui.card,
+                        borderColor: ui.stroke,
+                      },
+                      shadow,
+                    ]}
+                  >
+                    {avatarUri ? (
+                      <Image
+                        source={{ uri: avatarUri }}
+                        style={styles.avatarImg}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Text
+                        style={{
+                          fontFamily: "Faustina_700Bold",
+                          color: isDark ? "#E8FFF4" : "#0E1B13",
+                        }}
+                      >
+                        {getInitials(displayName)}
+                      </Text>
+                    )}
+                  </View>
+
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.hello, { color: ui.muted }]}>
+                      Xin chào,
+                    </Text>
+                    <Text
+                      style={[styles.name, { color: GREEN }]}
+                      numberOfLines={1}
+                    >
+                      {displayName}
+                    </Text>
+                  </View>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => nav.navigate("Settings")}
+                  hitSlop={10}
+                  style={({ pressed }) => [
+                    styles.settingsBtn,
                     {
                       backgroundColor: ui.card,
                       borderColor: ui.stroke,
                     },
                     shadow,
+                    pressed && { opacity: 0.9 },
                   ]}
                 >
-                  {avatarUri ? (
-                    <Image
-                      source={{ uri: avatarUri }}
-                      style={styles.avatarImg}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <Text
-                      style={{
-                        fontFamily: "Faustina_700Bold",
-                        color: isDark ? "#E8FFF4" : "#0E1B13",
-                      }}
-                    >
-                      {getInitials(displayName)}
-                    </Text>
-                  )}
-                </View>
-
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[styles.hello, { color: ui.muted }]}>
-                    Xin chào,
-                  </Text>
-                  <Text
-                    style={[styles.name, { color: GREEN }]}
-                    numberOfLines={1}
-                  >
-                    {displayName}
-                  </Text>
-                </View>
+                  <Ionicons name="settings-outline" size={18} color={ui.text} />
+                </Pressable>
               </View>
 
               <Pressable
@@ -812,6 +836,16 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  profileHit: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+
+  settingsBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
 
   hello: { fontFamily: "Faustina_500Medium", fontSize: 13 },
   name: { fontFamily: "Faustina_700Bold", fontSize: 16.5 },

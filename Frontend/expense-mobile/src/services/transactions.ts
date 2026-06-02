@@ -10,6 +10,13 @@ export type Transaction = {
   description: string;
   date: string; // YYYY-MM-DD
   type?: TxType;
+  transferId?: number | string | null;
+  recurringId?: number | string | null;
+  transferDirection?: "in" | "out" | null;
+  fromWalletId?: number | string | null;
+  toWalletId?: number | string | null;
+  fromWalletName?: string | null;
+  toWalletName?: string | null;
 };
 
 export type TxUpsertPayload = {
@@ -20,6 +27,20 @@ export type TxUpsertPayload = {
   walletId?: string | number | null;
   date: string; // YYYY-MM-DD
   description?: string;
+};
+
+export type RecurringRule = {
+  recurring_id: number | string;
+  category_id: number | string;
+  wallet_id: number | string;
+  amount: number;
+  description?: string | null;
+  interval_unit: "daily" | "weekly" | "monthly" | "yearly";
+  interval_count: number;
+  start_date: string;
+  next_run_date: string;
+  end_date?: string | null;
+  is_active: boolean;
 };
 
 const unwrap = (res: any) => res?.data?.data ?? res?.data ?? res;
@@ -70,12 +91,32 @@ function normalizeTx(raw: any): Transaction {
     type: normalizeType(
       raw.type ?? raw.tx_type ?? raw.transaction_type ?? raw.transactionType
     ), // ✅ giữ type
+    transferId: raw.transferId ?? raw.transfer_id ?? null,
+    recurringId: raw.recurringId ?? raw.recurring_id ?? null,
+    transferDirection: raw.transferDirection ?? raw.transfer_direction ?? null,
+    fromWalletId: raw.fromWalletId ?? raw.from_wallet_id ?? null,
+    toWalletId: raw.toWalletId ?? raw.to_wallet_id ?? null,
+    fromWalletName: raw.fromWalletName ?? raw.from_wallet_name ?? null,
+    toWalletName: raw.toWalletName ?? raw.to_wallet_name ?? null,
   };
 }
 
 // Report dùng
 export async function fetchAllTransactions(): Promise<Transaction[]> {
   const res = await api.get("/api/transactions");
+  const data = unwrap(res) || [];
+  return (Array.isArray(data) ? data : []).map(normalizeTx);
+}
+
+export async function fetchTransactions(params: {
+  fromDate?: string;
+  toDate?: string;
+  walletId?: string | number;
+  categoryId?: string | number;
+  type?: TxType | "all";
+  q?: string;
+}): Promise<Transaction[]> {
+  const res = await api.get("/api/transactions", { params });
   const data = unwrap(res) || [];
   return (Array.isArray(data) ? data : []).map(normalizeTx);
 }
@@ -95,5 +136,59 @@ export async function updateTransaction(
 
 export async function softDeleteTransaction(id: string | number) {
   const res = await api.delete(`/api/transactions/${id}`);
+  return unwrap(res);
+}
+
+export async function createTransfer(payload: {
+  fromWalletId: string | number;
+  toWalletId: string | number;
+  amount: number;
+  description?: string;
+  txDate?: string;
+}) {
+  const res = await api.post("/api/transactions/transfer", payload);
+  return unwrap(res);
+}
+
+export async function fetchRecurringRules(): Promise<RecurringRule[]> {
+  const res = await api.get("/api/transactions/recurring");
+  return (unwrap(res) || []) as RecurringRule[];
+}
+
+export async function createRecurringRule(payload: {
+  categoryId: string | number;
+  walletId: string | number;
+  amount: number;
+  description?: string;
+  intervalUnit: "daily" | "weekly" | "monthly" | "yearly";
+  intervalCount?: number;
+  startDate?: string;
+  endDate?: string | null;
+}) {
+  const res = await api.post("/api/transactions/recurring", payload);
+  return unwrap(res);
+}
+
+export async function updateRecurringRule(
+  id: string | number,
+  payload: Partial<{
+    categoryId: string | number;
+    walletId: string | number;
+    amount: number;
+    description: string;
+    intervalUnit: "daily" | "weekly" | "monthly" | "yearly";
+    intervalCount: number;
+    startDate: string;
+    nextRunDate: string;
+    endDate: string | null;
+    isActive: boolean;
+  }>
+) {
+  const res = await api.put(`/api/transactions/recurring/${id}`, payload);
+  return unwrap(res);
+}
+
+export async function deleteRecurringRule(id: string | number) {
+  const res = await api.delete(`/api/transactions/recurring/${id}`);
   return unwrap(res);
 }

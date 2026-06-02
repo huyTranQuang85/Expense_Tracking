@@ -4,5 +4,8 @@ export type CategoryStackParamList = {
   AddCategory:
     | { type?: "income" | "expense"; parentId?: number | string | null }
     | undefined;
+  AddSubCategory:
+    | { parentId?: number | string; parentName?: string; type?: "income" | "expense" }
+    | undefined;
   EditCategory: { cat: Category };
 };
