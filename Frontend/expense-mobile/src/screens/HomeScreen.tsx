@@ -30,8 +30,6 @@ import {
   Transaction,
 } from "../services/dashboard";
 import { ICON_BY_KEY } from "../constants/categoryPicker";
-import PieChart from "../components/charts/PieChart";
-import BarChart from "../components/charts/BarChart";
 
 const normalizeEmoji = (s: string) => s.replace(/\uFE0F/g, "");
 const isProbablyEmoji = (s: string) =>
@@ -370,64 +368,6 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            {/* Charts Section */}
-            <View style={[styles.chartsCard, { backgroundColor: ui.card }, shadow]}>
-              <View style={styles.chartsHeader}>
-                <Text style={[styles.chartsTitle, { color: ui.text }]}>Phân tích chi tiêu</Text>
-                <View style={[styles.chartsTabs, { backgroundColor: ui.soft }]}>
-                  <View style={[styles.chartsTab, styles.chartsTabActive]}>
-                    <Text style={[styles.chartsTabText, styles.chartsTabTextActive]}>Danh mục</Text>
-                  </View>
-                </View>
-              </View>
-              {computed.expenseByCat && computed.expenseByCat.length > 0 ? (
-                <View style={styles.pieChartWrap}>
-                  <PieChart
-                    data={computed.expenseByCat}
-                    size={140}
-                    innerRadius={42}
-                    showLegend={true}
-                  />
-                </View>
-              ) : (
-                <View style={styles.chartEmpty}>
-                  <Ionicons name="pie-chart-outline" size={32} color={ui.muted} />
-                  <Text style={[styles.chartEmptyText, { color: ui.muted }]}>Chưa có chi tiêu</Text>
-                </View>
-              )}
-            </View>
-
-            <View style={[styles.chartsCard, { backgroundColor: ui.card }, shadow]}>
-              <View style={styles.chartsHeader}>
-                <Text style={[styles.chartsTitle, { color: ui.text }]}>Xu hướng 7 ngày</Text>
-                <View style={[styles.trendIndicator, computed.dailyTrend?.reduce((s, d) => s + d.value, 0) >= 0 ? { backgroundColor: "rgba(16,185,129,0.15)" } : { backgroundColor: "rgba(239,68,68,0.15)" }]}>
-                  <Ionicons
-                    name={computed.dailyTrend?.reduce((s, d) => s + d.value, 0) >= 0 ? "trending-up" : "trending-down"}
-                    size={14}
-                    color={computed.dailyTrend?.reduce((s, d) => s + d.value, 0) >= 0 ? "#10B981" : "#EF4444"}
-                  />
-                </View>
-              </View>
-              {computed.dailyTrend && computed.dailyTrend.length > 0 ? (
-                <View style={styles.barChartWrap}>
-                  <BarChart
-                    data={computed.dailyTrend.map(d => ({
-                      ...d,
-                      gradient: d.color === "#10B981" ? ["#10B981", "#059669"] as [string, string] : ["#EF4444", "#DC2626"] as [string, string]
-                    }))}
-                    height={160}
-                    barWidth={24}
-                    unit="đ"
-                    gridLines={4}
-                  />
-                </View>
-              ) : (
-                <View style={styles.chartEmpty}>
-                  <Ionicons name="bar-chart-outline" size={32} color={ui.muted} />
-                  <Text style={[styles.chartEmptyText, { color: ui.muted }]}>Chưa có dữ liệu</Text>
-                </View>
-              )}
-            </View>
 
             {/* Search */}
             <View style={[styles.search, { backgroundColor: ui.card }, shadow]}>
