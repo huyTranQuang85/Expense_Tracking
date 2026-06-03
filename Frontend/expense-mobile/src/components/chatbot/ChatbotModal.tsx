@@ -49,6 +49,7 @@ type UiMessage = {
   _actions?: ChatActionChoice[];
   _note?: string | null;
   _meta?: ChatbotMeta | null;
+  _actionsLabel?: string | null;
 };
 
 type Props = { visible: boolean; onClose: () => void };
@@ -92,23 +93,42 @@ function normalizeAvatarUri(uri?: string | null) {
   return u;
 }
 
-function normalizeActions(meta?: ChatbotMeta | null): ChatActionChoice[] {
-  const items = [...(meta?.choices ?? []), ...(meta?.followUps ?? [])];
+function normalizeActions(meta?: ChatbotMeta | null): {
+  actions: ChatActionChoice[];
+  label: string | null;
+} {
+  const result = { actions: [] as ChatActionChoice[], label: null as string | null };
   const seen = new Set<string>();
 
-  return items
-    .map((item) => ({
-      label: String(item?.label ?? item?.value ?? "").trim(),
-      value: String(item?.value ?? item?.label ?? "").trim(),
-    }))
-    .filter((item) => item.label && item.value)
-    .filter((item) => {
-      const key = `${item.label}::${item.value}`;
-      if (seen.has(key)) return false;
+  // Ưu tiên choices (lựa chọn bắt buộc) - có label riêng
+  if (meta?.choices?.length) {
+    result.label = meta.choicesLabel || "Chọn một lựa chọn:";
+    for (const item of meta.choices) {
+      const label = String(item?.label ?? item?.value ?? "").trim();
+      const value = String(item?.value ?? item?.label ?? "").trim();
+      if (!label || !value) continue;
+      const key = `${label}::${value}`;
+      if (seen.has(key)) continue;
       seen.add(key);
-      return true;
-    })
-    .slice(0, 6);
+      result.actions.push({ label, value });
+    }
+  }
+
+  // Thêm followUps (gợi ý tiếp theo)
+  if (meta?.followUps?.length) {
+    // Nếu đã có choices, thêm 1 separator text để báo hiệu
+    for (const item of meta.followUps) {
+      const label = String(item?.label ?? item?.value ?? "").trim();
+      const value = String(item?.value ?? item?.label ?? "").trim();
+      if (!label || !value) continue;
+      const key = `${label}::${value}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.actions.push({ label, value });
+    }
+  }
+
+  return result;
 }
 
 export default function ChatbotModal({ visible, onClose }: Props) {
@@ -402,7 +422,7 @@ export default function ChatbotModal({ visible, onClose }: Props) {
 
         const reply =
           res.reply || "Mình chưa nhận được câu trả lời từ máy chủ.";
-        const actions = normalizeActions(res.meta);
+        const normalized = normalizeActions(res.meta);
         const note =
           res.meta?.note && !reply.includes(res.meta.note)
             ? res.meta.note
@@ -416,7 +436,8 @@ export default function ChatbotModal({ visible, onClose }: Props) {
             sender: "assistant",
             content: reply,
             _display: "",
-            _actions: actions,
+            _actions: normalized.actions,
+            _actionsLabel: normalized.label,
             _note: note,
             _meta: res.meta ?? null,
             created_at: nowIso(),
@@ -557,6 +578,7 @@ export default function ChatbotModal({ visible, onClose }: Props) {
         } as const)[item._meta.pendingField] ?? item._meta.pendingField
       : item._meta?.field ?? null;
     const helperText = item._meta?.prompt || item._note || null;
+    const actionsLabel = item._actionsLabel;
 
     return (
       <View style={styles.messageBlock}>
@@ -598,28 +620,47 @@ export default function ChatbotModal({ visible, onClose }: Props) {
                   : helperText}
               </Text>
             ) : null}
+
+            {/* Action chips INSIDE bubble with separator */}
+            {actions.length > 0 ? (
+              <>
+                <View
+                  style={[
+                    styles.actionSeparator,
+                    { backgroundColor: palette.divider },
+                  ]}
+                />
+                {actionsLabel ? (
+                  <Text
+                    style={[
+                      styles.actionsLabelText,
+                      { color: palette.textSub },
+                    ]}
+                  >
+                    {actionsLabel}
+                  </Text>
+                ) : null}
+                <View style={styles.actionInlineWrap}>
+                  {actions.map((action) => (
+                    <Pressable
+                      key={`${item._tempId ?? item.id ?? "action"}:${action.value}`}
+                      onPress={() => handleSuggestionClick(action.value)}
+                      style={({ pressed }) => [
+                        styles.actionChip,
+                        {
+                          backgroundColor: palette.suggestPillBg,
+                          opacity: pressed ? 0.9 : 1,
+                        },
+                      ]}
+                    >
+                      <Text style={styles.actionChipText}>{action.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            ) : null}
           </View>
         </View>
-
-        {actions.length ? (
-          <View style={styles.actionWrap}>
-            {actions.map((action) => (
-              <Pressable
-                key={`${item._tempId ?? item.id ?? "action"}:${action.value}`}
-                onPress={() => handleSuggestionClick(action.value)}
-                style={({ pressed }) => [
-                  styles.actionChip,
-                  {
-                    backgroundColor: palette.suggestPillBg,
-                    opacity: pressed ? 0.9 : 1,
-                  },
-                ]}
-              >
-                <Text style={styles.actionChipText}>{action.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
       </View>
     );
   };
@@ -899,6 +940,26 @@ const styles = StyleSheet.create({
   rowRight: { justifyContent: "flex-end" },
   messageBlock: {
     gap: 8,
+  },
+  actionSeparator: {
+    height: 1,
+    marginTop: 8,
+    marginBottom: 6,
+    opacity: 0.5,
+  },
+  actionInlineWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 2,
+  },
+  actionsLabelText: {
+    fontSize: 11,
+    fontWeight: "700",
+    marginBottom: 4,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    fontFamily: "Faustina_600SemiBold",
   },
   actionWrap: {
     marginLeft: 40,

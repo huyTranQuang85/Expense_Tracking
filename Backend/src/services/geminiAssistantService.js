@@ -278,13 +278,26 @@ function buildToolMeta(toolName, toolResult, latestMessage) {
     prompt: toolResult?.message || null,
   };
 
-  const followUps = [];
   const choices = [];
+  const followUps = [];
+
+  const pushChoices = (items) => {
+    for (const item of items || []) {
+      if (!item) continue;
+      const label = typeof item === "string" ? item : (item.label || item.value || "");
+      const value = typeof item === "string" ? item : (item.value || item.label || "");
+      if (!label || !value) continue;
+      if (!choices.some((x) => x.value === value)) choices.push({ label, value });
+    }
+  };
 
   const pushFollowUps = (items) => {
     for (const item of items || []) {
       if (!item) continue;
-      if (!followUps.some((x) => x.value === item.value)) followUps.push(item);
+      const label = typeof item === "string" ? item : (item.label || item.value || "");
+      const value = typeof item === "string" ? item : (item.value || item.label || "");
+      if (!label || !value) continue;
+      if (!followUps.some((x) => x.value === value)) followUps.push({ label, value });
     }
   };
 
@@ -295,101 +308,108 @@ function buildToolMeta(toolName, toolResult, latestMessage) {
       for (const opt of toolResult.options) {
         if (!opt) continue;
         if (typeof opt === "string") {
-          choices.push(toActionChoice(opt));
+          pushChoices([opt]);
           continue;
         }
         const label = String(opt.label || opt.name || opt.value || opt.id || "").trim();
         if (!label) continue;
-        choices.push(
-          toActionChoice(
-            label,
-            opt.value !== undefined && opt.value !== null
-              ? String(opt.value)
-              : label,
-          ),
-        );
+        pushChoices([{
+          label,
+          value: opt.value !== undefined && opt.value !== null ? String(opt.value) : label,
+        }]);
       }
     }
 
     if (Array.isArray(toolResult.walletOptions)) {
       for (const w of toolResult.walletOptions) {
         if (!w) continue;
-        choices.push(walletChoice(w));
+        pushChoices([walletChoice(w)]);
       }
     }
 
     if (toolResult.field === "wallet") {
-      pushFollowUps([
-        toActionChoice("Tạo ví mới", "Tạo ví mới"),
-        toActionChoice("Xem danh sách ví", "Xem danh sách ví"),
-      ]);
+      pushFollowUps(["Tạo ví mới", "Xem danh sách ví"]);
     }
   }
 
-  switch (toolResult?.action || toolName) {
-    case "create_category":
-      pushFollowUps([
-        toActionChoice("Thêm giao dịch vào danh mục này"),
-        toActionChoice("Tạo danh mục con"),
-        toActionChoice("Xem top danh mục chi tiêu"),
-      ]);
-      break;
-    case "add_wallet":
-      if (toolResult?.wallet?.name) {
+  // Thêm nextActions từ tool result -> followUps (ưu tiên cao)
+  if (Array.isArray(toolResult?.nextActions)) {
+    pushFollowUps(toolResult.nextActions);
+  }
+
+  // Gợi ý mặc định theo action type (nếu chưa có followUps từ nextActions)
+  if (followUps.length === 0) {
+    switch (toolResult?.action || toolName) {
+      case "create_category":
         pushFollowUps([
-          toActionChoice(`Thêm tiền vào ví "${toolResult.wallet.name}"`),
-          toActionChoice("Đổi icon ví"),
-          toActionChoice("Xem danh sách ví"),
+          "Thêm giao dịch vào danh mục này",
+          "Tạo danh mục con",
+          "Xem top danh mục chi tiêu",
         ]);
-      }
-      break;
-    case "add_income":
-      pushFollowUps([
-        toActionChoice("Thêm giao dịch khác"),
-        toActionChoice("Nhận xét ví hiện tại"),
-        toActionChoice("Đề xuất ví phù hợp để nhận lương"),
-      ]);
-      break;
-    case "add_transaction":
-      pushFollowUps([
-        toActionChoice("Thêm giao dịch khác"),
-        toActionChoice("Nhận xét budget tháng này"),
-        toActionChoice("Nhận xét ví hiện tại"),
-      ]);
-      break;
-    case "comment_budget":
-      pushFollowUps([
-        toActionChoice("Nhận xét ví hiện tại"),
-        toActionChoice("Top 3 giao dịch chi tiêu lớn nhất tháng này"),
-        toActionChoice("Xem tổng thu nhập và chi tiêu tháng này"),
-      ]);
-      break;
-    case "comment_wallet":
-      pushFollowUps([
-        toActionChoice("Thêm thu nhập vào ví"),
-        toActionChoice("Đề xuất ví phù hợp để nhận lương"),
-        toActionChoice("Tạo ví mới"),
-      ]);
-      break;
-    case "suggest_wallet":
-      pushFollowUps([
-        toActionChoice("Thêm thu nhập vào ví này"),
-        toActionChoice("Nhận xét ví hiện tại"),
-        toActionChoice("Xem danh sách ví"),
-      ]);
-      break;
-    default:
-      break;
+        break;
+      case "add_wallet":
+        if (toolResult?.wallet?.name) {
+          pushFollowUps([
+            `Thêm tiền vào ví "${toolResult.wallet.name}"`,
+            "Đổi icon ví",
+            "Xem danh sách ví",
+          ]);
+        }
+        break;
+      case "add_income":
+        pushFollowUps([
+          "Thêm giao dịch khác",
+          "Nhận xét ví hiện tại",
+          "Đề xuất ví phù hợp để nhận lương",
+        ]);
+        break;
+      case "add_transaction":
+        pushFollowUps([
+          "Thêm giao dịch khác",
+          "Nhận xét budget tháng này",
+          "Nhận xét ví hiện tại",
+        ]);
+        break;
+      case "comment_budget":
+        pushFollowUps([
+          "Nhận xét ví hiện tại",
+          "Top 3 giao dịch chi tiêu lớn nhất tháng này",
+          "Xem tổng thu nhập và chi tiêu tháng này",
+        ]);
+        break;
+      case "comment_wallet":
+        pushFollowUps([
+          "Thêm thu nhập vào ví",
+          "Đề xuất ví phù hợp để nhận lương",
+          "Tạo ví mới",
+        ]);
+        break;
+      case "suggest_wallet":
+        pushFollowUps([
+          "Thêm thu nhập vào ví này",
+          "Nhận xét ví hiện tại",
+          "Xem danh sách ví",
+        ]);
+        break;
+      default:
+        break;
+    }
   }
 
   if (toolResult?.message) {
     meta.note = toolResult.message;
   }
-  if (Array.isArray(toolResult?.nextActions)) {
-    pushFollowUps(toolResult.nextActions.map((item) => toActionChoice(item)));
+
+  // choices: có sectionLabel để frontend hiển thị
+  if (choices.length) {
+    meta.choices = choices.slice(0, 6);
+    meta.choicesLabel = "Chọn một lựa chọn:";
   }
-  if (choices.length) meta.choices = choices.slice(0, 6);
-  if (followUps.length) meta.followUps = followUps.slice(0, 4);
+
+  // followUps: sectionLabel gợi ý tiếp theo
+  if (followUps.length) {
+    meta.followUps = followUps.slice(0, 4);
+  }
 
   if (
     toolResult?.walletOptions &&
@@ -397,6 +417,7 @@ function buildToolMeta(toolName, toolResult, latestMessage) {
     Array.isArray(toolResult.walletOptions)
   ) {
     meta.choices = toolResult.walletOptions.slice(0, 6).map(walletChoice);
+    meta.choicesLabel = "Ví có sẵn:";
   }
 
   return meta;
@@ -638,14 +659,17 @@ async function runGeminiWithTools({ userId, history, latestMessage }) {
         sortOrder,
       });
 
+      const categoryTypeLabel = category.type === "expense" ? "chi tiêu" : "thu nhập";
+
       return {
         ok: true,
         action: "create_category",
         category,
-        message: `Đã tạo danh mục "${category.name}" (${category.type}).`,
+        message: `Đã tạo danh mục "${category.name}" (${categoryTypeLabel}).`,
         nextActions: [
-          "Thêm giao dịch vào danh mục này",
-          "Tạo danh mục con",
+          `Thêm ${categoryTypeLabel} 50.000đ vào danh mục "${category.name}"`,
+          `Tạo danh mục con cho "${category.name}"`,
+          "Đổi icon/ màu cho danh mục",
           "Xem top danh mục chi tiêu",
         ],
       };
@@ -683,8 +707,11 @@ async function runGeminiWithTools({ userId, history, latestMessage }) {
           wallet.balance,
         )}.`,
         nextActions: [
-          `Thêm tiền vào ví "${wallet.name}"`,
-          "Đổi icon ví",
+          `Thêm 1.000.000đ vào ví "${wallet.name}"`,
+          `Thêm 500.000đ vào ví "${wallet.name}"`,
+          `Thêm 2.000.000đ vào ví "${wallet.name}"`,
+          "Đổi icon/ màu cho ví",
+          `Thêm giao dịch vào ví "${wallet.name}"`,
           "Xem danh sách ví",
         ],
       };
@@ -788,9 +815,14 @@ async function runGeminiWithTools({ userId, history, latestMessage }) {
         transaction: tx,
         walletId,
         categoryId,
+        amount,
+        walletName: walletName || undefined,
+        categoryName: categoryName || undefined,
         message: `Đã thêm thu nhập ${formatCurrencyVnd(amount)} vào ví "${walletName || walletId}" với danh mục "${categoryName || categoryId}".`,
         nextActions: [
-          "Thêm giao dịch khác",
+          `Thêm thu nhập ${formatCurrencyVnd(amount)} nữa`,
+          "Thêm giao dịch chi tiêu",
+          "Nhận xét budget tháng này",
           "Nhận xét ví hiện tại",
           "Đề xuất ví phù hợp để nhận lương",
         ],
@@ -906,12 +938,16 @@ async function runGeminiWithTools({ userId, history, latestMessage }) {
         transaction: tx,
         type,
         walletId,
+        walletName: walletName || undefined,
         categoryId,
+        categoryName: categoryName || undefined,
+        amount,
         message: `Đã thêm ${type === "income" ? "thu nhập" : "chi tiêu"} ${formatCurrencyVnd(
           amount,
         )} vào ví "${walletName || walletId}" với danh mục "${categoryName || categoryId}".`,
         nextActions: [
-          "Thêm giao dịch khác",
+          `Thêm ${type === "income" ? "thu nhập" : "chi tiêu"} ${formatCurrencyVnd(amount)} nữa`,
+          type === "expense" ? "Thêm giao dịch thu nhập" : "Thêm giao dịch chi tiêu",
           "Nhận xét budget tháng này",
           "Nhận xét ví hiện tại",
         ],
@@ -924,6 +960,7 @@ async function runGeminiWithTools({ userId, history, latestMessage }) {
       return {
         ...buildBudgetCommentary(snapshot),
         nextActions: [
+          "Điều chỉnh ngân sách tháng này",
           "Nhận xét ví hiện tại",
           "Top 3 giao dịch chi tiêu lớn nhất tháng này",
           "Xem tổng thu nhập và chi tiêu tháng này",
@@ -933,10 +970,16 @@ async function runGeminiWithTools({ userId, history, latestMessage }) {
 
     comment_wallet_action: async (args) => {
       const monthOffset = resolveMonthOffset(args);
+      const walletCommentary = await buildWalletCommentary(userId, monthOffset);
+      const richest = walletCommentary?.richestWallet;
+      const weakest = walletCommentary?.weakestWallet;
+      const defaultAddAmount = weakest ? Math.ceil(Number(weakest.balance || 0) * 0.2) : 500000;
+
       return {
-        ...(await buildWalletCommentary(userId, monthOffset)),
+        ...walletCommentary,
         nextActions: [
-          "Thêm thu nhập vào ví",
+          richest ? `Thêm ${formatCurrencyVnd(defaultAddAmount)} vào ví "${richest.name}"` : "Thêm thu nhập vào ví",
+          "Nhận xét budget tháng này",
           "Đề xuất ví phù hợp để nhận lương",
           "Tạo ví mới",
         ],

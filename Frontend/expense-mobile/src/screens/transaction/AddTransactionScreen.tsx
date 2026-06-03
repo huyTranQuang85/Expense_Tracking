@@ -158,15 +158,23 @@ export default function AddTransactionScreen() {
     setSubCategoryId(null);
   }, [categoryId]);
 
-  // đổi type -> reset chọn danh mục theo type
+  // FIX: Khi categories load hoặc type thay đổi, đảm bảo categoryId hợp lệ
   useEffect(() => {
+    if (!categories.length) return;
+    
+    // Kiểm tra xem categoryId hiện tại có còn hợp lệ không
+    const currentValid = categoryId != null && categories.some(
+      (c: any) => String(c.id) === String(categoryId) && !parentKey(c) && c?.type === type
+    );
+    if (currentValid) return;
+
     const roots = categories.filter(
       (c: any) => !parentKey(c) && c?.type === type,
     );
     if (roots.length) setCategoryId(roots[0].id);
     else setCategoryId(null);
     setSubCategoryId(null);
-  }, [type]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [type, categories]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rootCategories = useMemo(() => {
     return categories

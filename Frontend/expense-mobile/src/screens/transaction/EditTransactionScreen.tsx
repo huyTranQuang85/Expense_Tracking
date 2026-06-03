@@ -110,9 +110,9 @@ export default function EditTransactionScreen() {
   const tx = route.params?.tx;
   const txId = tx?.id ?? tx?.transactionId ?? tx?.transaction_id;
 
-  const initType: TxType = (tx?.category_type ??
-    tx?.type ??
-    (Number(tx?.amount ?? 0) >= 0 ? "income" : "expense")) as TxType;
+  // FIX: amount trong DB luôn > 0, không thể dùng amount >= 0 để suy ra type
+  const rawType = tx?.category_type ?? tx?.type;
+  const initType: TxType = rawType === "expense" ? "expense" : rawType === "income" ? "income" : "expense";
 
   const initAmount = Math.abs(Number(tx?.amount ?? 0)) || 0;
 

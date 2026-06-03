@@ -27,6 +27,7 @@ export type ChatbotMeta = {
   note?: string | null;
   followUps?: ChatActionChoice[];
   choices?: ChatActionChoice[];
+  choicesLabel?: string | null;
   quotaLimited?: boolean;
   retryAfterSeconds?: number | null;
 };

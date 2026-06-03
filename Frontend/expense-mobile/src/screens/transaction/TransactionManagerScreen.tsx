@@ -31,6 +31,7 @@ import {
 import { useTheme } from "../../theme/ThemeContext";
 import { SearchBar, SegmentedControl, Button } from "../../components/ui";
 import SelectModal from "../../components/SelectModal";
+import PieChart from "../../components/charts/PieChart";
 
 type FilterType = "all" | "income" | "expense";
 
@@ -264,9 +265,19 @@ export default function TransactionManagerScreen() {
   );
 
   React.useEffect(() => {
-    const id = setTimeout(() => setQuery(queryInput.trim()), 300);
+    const id = setTimeout(() => {
+      setQuery(queryInput.trim());
+    }, 300);
     return () => clearTimeout(id);
   }, [queryInput]);
+
+  // FIX: Khi query thay đổi, tự động reload danh sách
+  React.useEffect(() => {
+    if (query !== undefined) {
+      load();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
 
   const summary = useMemo(() => {
     return rows.reduce(
@@ -294,6 +305,31 @@ export default function TransactionManagerScreen() {
     wallets.forEach((item) => map.set(String(item.id), item));
     return map;
   }, [wallets]);
+
+  // Pie chart: expense breakdown by category (top 5)
+  const expenseCatData = useMemo(() => {
+    const catTotals = new Map<string, { value: number; color: string; label: string }>();
+    const catColorMap = new Map<string, string>();
+    const defaultColors = ["#F97316","#3B82F6","#EC4899","#8B5CF6","#EF4444","#14B8A6","#F59E0B","#6366F1","#06B6D4","#64748B"];
+    categories.forEach((c, i) => catColorMap.set(String(c.id), c.color || defaultColors[i % defaultColors.length]));
+
+    rows.filter(tx => pickType(tx) === "expense").forEach(tx => {
+      const catId = String(tx.category_id ?? tx.categoryId ?? "");
+      if (!catId) return;
+      const name = String(catMap.get(catId)?.name || tx.category_name || "Khác");
+      const amount = Math.abs(Number(tx.amount ?? 0));
+      const existing = catTotals.get(catId);
+      if (existing) existing.value += amount;
+      else catTotals.set(catId, { value: amount, color: catColorMap.get(catId) || "#94A3B8", label: name });
+    });
+
+    const sorted = Array.from(catTotals.values()).sort((a, b) => b.value - a.value);
+    if (sorted.length <= 5) return sorted;
+    const top5 = sorted.slice(0, 5);
+    const other = sorted.slice(5).reduce((s, x) => s + x.value, 0);
+    top5.push({ value: other, color: "#94A3B8", label: "Khác" });
+    return top5;
+  }, [rows, categories, catMap]);
 
   const walletItems = useMemo(
     () =>
@@ -617,6 +653,29 @@ export default function TransactionManagerScreen() {
               onChange={(key) => setFilterType(key as FilterType)}
             />
           </View>
+
+          {/* Pie Chart: Chi tiêu theo danh mục */}
+          {summary.expense > 0 && (
+            <View style={[styles.listCard, { backgroundColor: ui.card, borderColor: ui.stroke }, shadowStyle(isDark)]}>
+              <View style={{ marginBottom: 4 }}>
+                <Text style={[styles.listSubtitle, { color: ui.muted, fontSize: 11 }]}>
+                  Chi tiêu theo danh mục
+                </Text>
+                <Text style={[styles.listTitle, { color: ui.text, fontSize: 16 }]}>
+                  {fmtMoney(summary.expense)}
+                </Text>
+              </View>
+              {expenseCatData.length > 0 && (
+                <PieChart
+                  data={expenseCatData}
+                  size={120}
+                  innerRadius={30}
+                  showLegend={true}
+                  centerLabel="Chi"
+                />
+              )}
+            </View>
+          )}
 
           <View style={[styles.listCard, { backgroundColor: ui.card, borderColor: ui.stroke }, shadowStyle(isDark)]}>
             <View style={styles.listHeader}>
